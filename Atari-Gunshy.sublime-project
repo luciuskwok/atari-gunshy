@@ -1,0 +1,16 @@
+{
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+	"build_systems":
+	[
+		{
+			"name": "CC65",
+			"shell_cmd": "\\cc65-snapshot-win32\\bin\\cl65 -O -t atari -C config.cfg -m __linker_map.txt main.c font.asm -o gunshy.xex"
+
+		}
+	]
+}

@@ -1,0 +1,12 @@
+#Custom
+__*
+
+#cc65
+linker_map.txt
+*.s
+*.o
+*.xex
+
+# Sublime Text
+*.sublime-workspace
+
