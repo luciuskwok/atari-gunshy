@@ -7,6 +7,8 @@ To build this project, you will need [CC65](https://github.com/cc65/cc65).
 
 To run the program, you will need an Atari 8-bit emulator such as [Altirra](http://www.virtualdub.org/altirra.html).
 
+__Building this Project__
+
 This project uses a Sublime Text 3 project file which contains the build command, cl65, and the list of files to build. Please see that file to see the latest list of files included in the build phase.
 
 The build command will look something like: 
