@@ -13,7 +13,6 @@
 
 // Globals
 uint8_t isQuitting;
-uint8_t *screenMemory;
 
 uint8_t tilesLevel0[14*8];
 uint8_t tilesLevel1[8*6];
@@ -22,11 +21,19 @@ uint8_t tilesLevel3[4*2];
 uint8_t tileApex;
 
 
-// Constnats
+// Constants
 #define row_bytes (40)
 #define middleLeftTileIndex (3*14)
 #define middleRightTile0Index (3*14+13)
 #define middleRightTile1Index (4*14+13)
+
+
+// ASM
+void initGraphics(void);
+void initMouse(void);
+void initVBI(void);
+
+void printStringAtXY(const uint8_t *s, uint8_t x, uint8_t y);
 
 
 // Mapping from tile number to character number
@@ -89,23 +96,24 @@ const uint8_t level0RowHalfWidths[] = { 6, 4, 5, 6, 6, 5, 4, 6 };
 static void drawTile(uint8_t tile, uint8_t x, uint8_t y) {
 	// Uses ROWCRS and COLCRS to position origin of tile.
 	uint16_t offset = x + row_bytes * y;
+	uint8_t *screen = (uint8_t*)PEEKW(SAVMSC);
 	const uint8_t *charIndex = &tileCharMap[((tile-1)%36) * 4];
 	const uint8_t frontTileMask = 0x80;
 
-	screenMemory[offset] = charIndex[0]; // draw tile face
-	screenMemory[offset+1] = charIndex[1];
-	screenMemory[offset+row_bytes] = charIndex[2];
-	screenMemory[offset+(row_bytes+1)] = charIndex[3];
-	screenMemory[offset+(2*row_bytes)] = frontTileMask|2; // draw front-side of tile
-	screenMemory[offset+(2*row_bytes+1)] = frontTileMask|3;
+	screen[offset] = charIndex[0]; // draw tile face
+	screen[offset+1] = charIndex[1];
+	screen[offset+row_bytes] = charIndex[2];
+	screen[offset+(row_bytes+1)] = charIndex[3];
+	screen[offset+(2*row_bytes)] = frontTileMask|2; // draw front-side of tile
+	screen[offset+(2*row_bytes+1)] = frontTileMask|3;
 
 	// draw left-side of tile, if needed
-	if (screenMemory[offset+(0*row_bytes-1)] == 0) {
-		screenMemory[offset+(0*row_bytes-1)] = 1; 
+	if (screen[offset+(0*row_bytes-1)] == 0) {
+		screen[offset+(0*row_bytes-1)] = 1; 
 	}
-	if (screenMemory[offset+(1*row_bytes-1)] == 0) {
-		screenMemory[offset+(1*row_bytes-1)] = 1;
-		screenMemory[offset+(2*row_bytes-1)] = 1;
+	if (screen[offset+(1*row_bytes-1)] == 0) {
+		screen[offset+(1*row_bytes-1)] = 1;
+		screen[offset+(2*row_bytes-1)] = 1;
 	}
 }
 
@@ -314,43 +322,22 @@ static void handleKeyboard(void) {
 	previousKeycode = keycode;
 }
 
-static void initGraphics(void) {
-	uint8_t *displayList = (uint8_t *)PEEKW(SDLSTL);
-	uint8_t y; 
-
-	// Set globals
-	screenMemory = (uint8_t *)PEEKW(SAVMSC);
-
-	// Write custom display list, keeping screen memory in same place
-	displayList[3] = DL_LMS(DL_CHR40x8x4);
-	for (y=6; y<6+21; ++y) {
-		displayList[y] = DL_CHR40x8x4;
-	}
-
-	// Color table
-	for (y=0; y<9; ++y) {
-		POKE(PCOLR0+y, colorTable[y]);
-	}
-
-	// Remove cursor
-	screenMemory[2] = 0;
-
-	// Use custom font
-	POKE(CHBAS, 0x20);
-}
-
 int main (void) {
 	// Init
 	initGraphics();
+	//initMouse();
+	//initVBI();
 	isQuitting = 0;
 
 	// Test all charas
 	// {
 	// 	uint8_t x;
 	// 	for (x=0; x<255; ++x) {
-	// 		screenMemory[x] = x;
+	// 		screen[x] = x;
 	// 	}
 	// }
+
+	printStringAtXY("Hello, world!", 2, 22);
 
 	// New game
 	initTileBoard();
@@ -358,7 +345,7 @@ int main (void) {
 
 	while (isQuitting == 0) {
 		handleKeyboard();
-		RESET_ATTRACT;
+		ATRACTc = 0;
 	}
 
 	return 0; // success

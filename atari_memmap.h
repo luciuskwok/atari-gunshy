@@ -4,30 +4,31 @@
 #define ATARI_MEMMAP_H
 
 // Zero Page - OS
-#define APPMHI (0x000E)
-#define ATRACT (0x004D)
+#define APPMHI (0x0E)
+#define ATRACT (0x4D)
 
-#define TMPCHR (0x0050) /* Temporary register used by display handler */
-#define HOLD1  (0x0051) /* Also temporary register */
-#define LMARGN (0x0052) /* Left margin */
-#define RMARGN (0x0053) /* Right margin */
-#define ROWCRS (0x0054) /* Current graphics or text cursor row */
-#define COLCRS (0x0055) /* Current graphics or text cursor column, 16-bit */
-#define DINDEX (0x0057) /* Current screen/display mode */
-#define SAVMSC (0x0058) /* Pointer to screen memory, 16-bit */
-#define OLDROW (0x005A) /* Previous graphics cursor row */
-#define OLDCOL (0x005B) /* Previous graphics cursor column, 16-bit */
-#define NEWROW (0x0060)
-#define NEWCOL (0x0061)
-#define SAVADR (0x0068) /* Temporary pointer for screen row */
-#define RAMTOP (0x006A)
-#define BITMSK (0x006E)
-#define DELTAR (0x0076)
-#define DELTAC (0x0077)
-#define ROWINC (0x0079)
-#define COLINC (0x007A)
+#define TMPCHR (0x50) /* Temporary register used by display handler */
+#define HOLD1  (0x51) /* Also temporary register */
+#define LMARGN (0x52) /* Left margin */
+#define RMARGN (0x53) /* Right margin */
+#define ROWCRS (0x54) /* Current graphics or text cursor row */
+#define COLCRS (0x55) /* Current graphics or text cursor column, 16-bit */
+#define DINDEX (0x57) /* Current screen/display mode */
+#define SAVMSC (0x58) /* Pointer to screen memory, 16-bit */
+#define OLDROW (0x5A) /* Previous graphics cursor row */
+#define OLDCOL (0x5B) /* Previous graphics cursor column, 16-bit */
+#define NEWROW (0x60)
+#define NEWCOL (0x61)
+#define SAVADR (0x68) /* Temporary pointer for screen row */
+#define RAMTOP (0x6A)
+#define BITMSK (0x6E)
+#define DELTAR (0x76)
+#define DELTAC (0x77)
+#define ROWINC (0x79)
+#define COLINC (0x7A)
 
 #define SHORT_CLOCK (PEEK(20) + 256 * PEEK(19))
+#define ATRACTc (*(char*)ATRACT)
 #define RESET_ATTRACT (POKE(ATRACT,0))
 
 // Page 2 - OS
@@ -57,7 +58,8 @@
 #define COLOR2 (0x02C6) /* text background color */
 #define COLOR3 (0x02C7)
 #define COLOR4 (0x02C8)
-#define TXTBKG (0x02CA)
+#define COLOR5 (0x02C9) /* DLI text luminance */
+#define COLOR6 (0x02CA) /* DLI text background color */
 
 // Memory Management
 #define MEMTOP (0x02E5)
