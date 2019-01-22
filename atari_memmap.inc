@@ -1,4 +1,4 @@
-; atari_memmap.asm
+; atari_memmap.inc
 	
 	; Zero page OS
 	POKMSK    = $10   		; Shadow of IRQEN

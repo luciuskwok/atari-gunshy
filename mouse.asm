@@ -1,17 +1,13 @@
 ; mouse.asm 
 
-.include "atari_memmap.asm"
-
+.include "atari_memmap.inc"
+.include "global.inc"
 
 ; Constants
 .rodata 
-	PMLeftMargin = 48
-	PMWidth = 160
-	PMTopMargin = 16
-	PMHeight = 96
-	MousePointerLength = 11
 	mousePointerData:
 		.byte $80, $C0, $E0, $F0, $F8, $FC, $FE, $F0, $98, $18, $0C
+		mousePointer_length = 11
 	STMouseLookupTable:
 		.byte $00, $FF, $01, $00 ; 0000, 0001, 0010, 0011
 		.byte $01, $00, $00, $FF ; 0100, 0101, 0110, 0111
@@ -93,8 +89,10 @@
 	lda _mouseLocY
 	cmp _prevMouseLocY 
 	beq skip_y
+		pha ; Save mouseLocY on stack 
+
 		; Erase old pointer
-		ldx #MousePointerLength
+		ldx #mousePointer_length
 		ldy _prevMouseLocY
 		lda #0
 		loop_erase:
@@ -105,16 +103,18 @@
 
 		; Draw pointer in new location
 		ldx #0
-		ldy _mouseLocY
+		pla 
+		tay
+		pha 
 		loop_draw:
 			lda mousePointerData,X
 			sta (mouseSprite),Y 
 			iny 
 			inx 
-			cpx #MousePointerLength 
+			cpx #mousePointer_length 
 			bne loop_draw
 	
-		lda _mouseLocY 
+		pla 
 		sta _prevMouseLocY
 	skip_y:
 	rts 

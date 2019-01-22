@@ -1,28 +1,37 @@
 ; graphics.asm
 
-.include "atari_memmap.asm"
+.include "atari_memmap.inc"
+.include "global.inc"
+
 
 ; Global Variables
 .bss
 	.export _spritePage
 	_spritePage: .res 1
 
+.data 
+	prevSelectedTileSpriteY: .byte 0
+
 ; Constant data
 .rodata 
 
 	colorTable:
-		.byte $58	; mouse pointer sprite
+		.byte $58	; P0: mouse pointer sprite
 		.byte $0E	; P1 sprite
 		.byte $0E	; P2 sprite
-		.byte $00	; P3 sprite
-		.byte $0E	; COLOR0, white
-		.byte $36	; COLOR1, red
-		.byte $B4	; COLOR2, green
-		.byte $92	; COLOR3, blue
-		.byte $00	; COLOR4, background, black
-		.byte $0E	; COLOR5, DLI text luminance, white
-		.byte $B2	; COLOR6, DLI text bkgnd, dark green
-		.byte $00	; COLOR7, unused
+		.byte $00	; P3: apex tile left border sprite
+		.byte $0E	; COLOR0: white
+		.byte $36	; COLOR1: red
+		.byte $B4	; COLOR2: green
+		.byte $92	; COLOR3: blue
+		.byte $00	; COLOR4: background, black
+		.byte $0E	; COLOR5: DLI text luminance, white
+		.byte $B2	; COLOR6: DLI text bkgnd, dark green
+		.byte $00	; COLOR7: unused
+
+	selectedTileSprite:
+		.byte $FC, $84, $84, $84, $84, $84, $84, $84, $84, $FC
+		selectedTileSprite_length = 10
 
 ; Display List instructions
 	DL_JVB    = $41
@@ -42,8 +51,80 @@
 	DL_TILE   = $04
 .code
 
+; void setSelectedTile(uint8_t x, uint8_t y);
+.export _setSelectedTile 
+.proc _setSelectedTile
+	.importzp sreg 
+	.import popa
 
-; void printStringAtXY(const UInt8 *s, UInt8 x, UInt8 y);
+	asl a  			; Y = row * 4 + PMTopMargin
+	asl a 
+	clc 
+	adc #PMTopMargin
+	cmp prevSelectedTileSpriteY
+	beq set_X
+		pha 
+
+		lda #1  		; Get player P0 sprite memory
+		jsr _getSpritePtr
+		sta sreg 
+		stx sreg+1
+
+		; Erase the old sprite
+		ldy prevSelectedTileSpriteY
+		ldx #selectedTileSprite_length
+		lda #0
+		loop_erase:
+			sta (sreg),Y 
+			iny 
+			dex 
+			bne loop_erase
+
+		; Draw the sprite at the new Y position
+		pla 
+		sta prevSelectedTileSpriteY 	; update previous value
+		tay
+		pha 
+		ldx #0
+		loop_draw:
+			lda selectedTileSprite,x
+			sta (sreg),Y 
+			iny 
+			inx
+			cpx #selectedTileSprite_length 
+			bne loop_draw
+
+	set_X:
+		jsr popa  		; X = row * 4 + PMLeftMargin
+		asl a 
+		asl a 
+		clc 
+		adc #PMLeftMargin
+		sta HPOSP1
+
+	rts
+.endproc
+
+; uint8_t* getSpritePtr(uint8_t sprite);
+.export _getSpritePtr
+.proc _getSpritePtr
+	; on entry: A = 0 for missiles, 1-4 for players P0-P3
+	clc 
+	adc #3 
+	lsr a 
+	tax  		; Store MSB in X
+	lda #0
+	ror a 		; This sets A to $80 if carry was set
+	tay 		; Store LSB in Y temporarily
+	txa 
+	clc 		; Add MSB to spritePage
+	adc _spritePage 
+	tax 		; MSB in X for return result
+	tya 		; LSB in A for return result
+	rts 
+.endproc 
+
+; void printStringAtXY(const uint8_t *s, uint8_t x, uint8_t y);
 .export _printStringAtXY
 .proc _printStringAtXY
 	.importzp ptr1
@@ -66,7 +147,7 @@
 	rts
 .endproc
 
-; void printString(const UInt8 *s);
+; void printString(const uint8_t *s);
 .export _printString
 .proc _printString 
 	.importzp ptr2
@@ -131,7 +212,7 @@
 	rts 
 .endproc
 
-; UInt8 toAtascii(UInt8 c);
+; uint8_t toAtascii(uint8_t c);
 .export _toAtascii
 .proc _toAtascii
 	cmp #$20			; if A < $20: 
@@ -147,7 +228,7 @@
 		rts
 .endproc
 
-; void delayTicks(UInt8 ticks);
+; void delayTicks(uint8_t ticks);
 .export _delayTicks
 .proc _delayTicks
 	clc
@@ -205,7 +286,6 @@
 	rts 
 .endproc 
 
-
 .proc initDisplayList
 	.importzp ptr1 
 	.import _DLI
@@ -251,7 +331,6 @@
 
 	rts
 .endproc
-
 
 .proc initSprite
 	.importzp ptr1

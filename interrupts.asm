@@ -1,6 +1,6 @@
 ; interrupts.asm 
 
-.include "atari_memmap.asm"
+.include "atari_memmap.inc"
 
 ; Global Variables
 .bss

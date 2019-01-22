@@ -26,6 +26,8 @@ uint8_t tileApex;
 #define middleLeftTileIndex (3*14)
 #define middleRightTile0Index (3*14+13)
 #define middleRightTile1Index (4*14+13)
+#define PMLeftMargin (48)
+#define PMTopMargin (16)
 
 
 // ASM
@@ -33,6 +35,7 @@ void initGraphics(void);
 void initMouse(void);
 void initVBI(void);
 
+uint8_t* getSpritePtr(uint8_t sprite);
 void printStringAtXY(const uint8_t *s, uint8_t x, uint8_t y);
 
 
@@ -58,38 +61,29 @@ const uint8_t tileCharMap[] = {
 	0x3C, 0x3D, 0x2E, 0x2F, // 8 of chars
 	0x3E, 0x3F, 0x2E, 0x2F, // 9 of chars
 
-	0x40, 0xC1, 0x42, 0x43, // 1 of bamboo
-	0x44, 0x45, 0x46, 0x47, // 2 of bamboo
-	0x48, 0x49, 0x4A, 0x4B, // 3 of bamboo
-	0x4C, 0x4D, 0x4E, 0x4F, // 4 of bamboo
-	0x50, 0x51, 0x52, 0x53, // 5 of bamboo
-	0x54, 0x55, 0x56, 0x57, // 6 of bamboo
-	0x58, 0x59, 0x5A, 0x5B, // 7 of bamboo
-	0x5C, 0x5D, 0x5E, 0x5F, // 8 of bamboo
-	0x60, 0x61, 0x62, 0x63, // 9 of bamboo
+	0x40, 0x41, 0x42, 0xC3, // 1 of bamboo
+	0x44, 0x05, 0x46, 0x47, // 2 of bamboo
+	0x45, 0x05, 0x4A, 0x4B, // 3 of bamboo
+	0x48, 0x49, 0x4A, 0x4B, // 4 of bamboo
+	0x4C, 0x4D, 0x4E, 0x4F, // 5 of bamboo
+	0x50, 0x51, 0x52, 0x53, // 6 of bamboo
+	0x54, 0x55, 0x56, 0x57, // 7 of bamboo
+	0x58, 0x59, 0x5A, 0x5B, // 8 of bamboo
+	0x5C, 0x5D, 0x5E, 0x5F, // 9 of bamboo
 
-	0x64, 0x65, 0x66, 0x67, // North wind
-	0x68, 0x69, 0x6A, 0x6B, // East wind
-	0x6C, 0x6D, 0x6E, 0x6F, // West wind
-	0x70, 0x71, 0x72, 0x73, // South wind
+	0x60, 0x61, 0x62, 0x63, // North wind
+	0x64, 0x65, 0x66, 0x67, // East wind
+	0x68, 0x69, 0x6A, 0x6B, // West wind
+	0x6C, 0x6D, 0x6E, 0x6F, // South wind
 
-	0x74, 0x75, 0x76, 0x77, // Red dragon
-	0x78, 0x79, 0x7A, 0x7B, // Green dragon
+	0x70, 0x71, 0x72, 0x73, // Red dragon
+	0x74, 0x75, 0x76, 0x77, // Green dragon
 	0x04, 0x05, 0x06, 0x07, // White dragon
-
-	0x04, 0x05, 0x06, 0x07, // Seasons
-	0x04, 0x05, 0x06, 0x07, // Flowers
-
+	
+	0xF8, 0xF9, 0xFA, 0xFB, // Moon
+	0xFC, 0xFD, 0x7E, 0x7F, // Flower
 };
 
-const uint8_t colorTable[] = {
-	0x0E, 0x0E, 0x0E, 0x0E, // sprites, unused 
-	0x0E, // playfield 1, white
-	0x36, // playfield 2, red
-	0xB4, // playfield 3, green
-	0x92, // playfield 4, blue
-	0x00, // background, black
-};
 
 const uint8_t level0RowHalfWidths[] = { 6, 4, 5, 6, 6, 5, 4, 6 };
 
@@ -114,6 +108,14 @@ static void drawTile(uint8_t tile, uint8_t x, uint8_t y) {
 	if (screen[offset+(1*row_bytes-1)] == 0) {
 		screen[offset+(1*row_bytes-1)] = 1;
 		screen[offset+(2*row_bytes-1)] = 1;
+	}
+}
+
+static void setApexTileLeftBorderVisible(uint8_t visible) {
+	if (visible) {
+		POKE(HPOSP3, PMLeftMargin+75);
+	} else {
+		POKE(HPOSP3, 0);
 	}
 }
 
@@ -175,6 +177,9 @@ static void drawTileBoard(void) {
 		x = centerX - 1;
 		y = centerY - 6;
 		drawTile(tileApex, x, y);
+		setApexTileLeftBorderVisible(1);
+	} else {
+		setApexTileLeftBorderVisible(0);
 	}
 
 	// Draw middle-left end tile
@@ -220,7 +225,7 @@ static void initTileBoard(void) {
 	}
 	tileApex = 0;
 
-	tile = 1;
+	tile = 18;
 
 	// Place level 0 tiles
 	for (y=0; y<8; ++y) {
@@ -276,15 +281,6 @@ static void initTileBoard(void) {
 
 
 static void keyDown(uint8_t keycode) {
-	/* Musical keyboard:
-		Use keys on the bottom row from Z to M and the comma key for the white keys.
-		Use the home rome for black keys.
-		Q: switches to wavetable synth for bass notes (-2 octaves)
-		W: switches to normal square-wave tone.
-		Keys 1-4: switches octaves.
-		Keys 8, 9, 0: starts a song.
-		Space: stops the song.
-	*/
 	uint8_t shift = keycode & 0x40;
 	uint8_t control = keycode & 0x80;
 	uint8_t note = 0xFF;
@@ -292,7 +288,16 @@ static void keyDown(uint8_t keycode) {
 
 	switch (keycode & 0x3F) {
 		case KEY_DELETE:
+		case KEY_Z:
 			// Handle "Undo Move" 
+			break;
+
+		case KEY_N:
+			// Handle "New"
+			break;
+
+		case KEY_R:
+			// Handle "Restart"
 			break;
 
 		default:
@@ -322,6 +327,15 @@ static void handleKeyboard(void) {
 	previousKeycode = keycode;
 }
 
+static void setApexTileLeftBorderSprite(void) {
+	uint8_t *sprite = getSpritePtr(4);
+	uint8_t y;
+
+	for (y=0; y<10; ++y) {
+		sprite[PMTopMargin+5*4+1+y] = 0x80;
+	}
+}
+
 int main (void) {
 	// Init
 	initGraphics();
@@ -336,6 +350,9 @@ int main (void) {
 	// 		screen[x] = x;
 	// 	}
 	// }
+
+	// Add sprite data for apex tile left border
+	setApexTileLeftBorderSprite();
 
 	printStringAtXY("Hello, world!", 2, 22);
 
