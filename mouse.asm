@@ -66,6 +66,13 @@
 	and #7
 	bne return 
 	updateSelection:
+		; Set x-position here to avoid having x and y positions update separately.
+		lda selectionLocX 	
+		sta HPOSP1
+		clc 
+		adc #8
+		sta HPOSM1
+
 		jsr drawSelection
 		jsr shiftSelectionPattern
 		lda #0

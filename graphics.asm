@@ -65,10 +65,6 @@
 	clc 
 	adc #PMLeftMargin-1
 	sta selectionLocX
-	sta HPOSP1
-	clc 
-	adc #8
-	sta HPOSM1
 
 	lda #1 
 	sta selectionHasMoved
