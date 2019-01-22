@@ -5,22 +5,22 @@
 ; Global Variables
 .data 
 	_enableColorCycling: .byte 1
-	
+
 .code 
 
 .export _initVBI
 .proc _initVBI
-	.import _initMouse
+	.import initMouse
 
-	jsr _initMouse
+	jsr initMouse
 
-	ldy #<_immediateUserVBI
-	ldx #>_immediateUserVBI
+	ldy #<immediateUserVBI
+	ldx #>immediateUserVBI
 	lda #6			; 6=Immediate, 7=Deferred.
 	jsr $E45C		; SETVBV: Y=LSB, X=MSB
 
-	ldy #<_deferredUserVBI
-	ldx #>_deferredUserVBI
+	ldy #<deferredUserVBI
+	ldx #>deferredUserVBI
 	lda #7			; 6=Immediate, 7=Deferred.
 	jsr $E45C		; SETVBV: Y=LSB, X=MSB
 
@@ -28,7 +28,9 @@
 .endproc 
 
 
-.proc _immediateUserVBI
+.proc immediateUserVBI
+	.import mouseImmediateVBI
+	jsr mouseImmediateVBI
 	jsr cyclePointerColor
 	jmp SYSVBV			; jump to the OS immediate VBI routine
 .endproc
@@ -58,10 +60,10 @@
 	rts 
 .endproc 
 
-.proc _deferredUserVBI
-	.import _mouseVBI
+.proc deferredUserVBI
+	.import mouseDeferredVBI
 
-	jsr _mouseVBI
+	jsr mouseDeferredVBI
 	
 	return:
 		jmp XITVBV

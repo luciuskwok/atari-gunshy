@@ -29,10 +29,6 @@
 		.byte $B2	; COLOR6: DLI text bkgnd, dark green
 		.byte $00	; COLOR7: unused
 
-	selectedTileSprite:
-		.byte $FF, $80, $80, $80, $80, $80, $80, $80, $FF
-		selectedTileSprite_length = 9
-
 ; Display List instructions
 	DL_JVB    = $41
 	DL_BLK1   = $00
@@ -54,66 +50,28 @@
 ; void setSelectedTile(uint8_t x, uint8_t y);
 .export _setSelectedTile 
 .proc _setSelectedTile
-	.importzp ptr1, ptr2 
 	.import popa
+	.import selectionLocX, selectionLocY, selectionHasMoved
 
 	asl a  			; Y = row * 4 + PMTopMargin
 	asl a 
 	clc 
 	adc #PMTopMargin
-	cmp prevSelectedTileSpriteY
-	beq set_X
-		pha 
+	sta selectionLocY
 
-		lda #2  		; ptr1 = player P1 sprite memory
-		jsr _getSpritePtr
-		sta ptr1 
-		stx ptr1+1
+	jsr popa  		; X = row * 4 + PMLeftMargin
+	asl a 
+	asl a 
+	clc 
+	adc #PMLeftMargin-1
+	sta selectionLocX
+	sta HPOSP1
+	clc 
+	adc #8
+	sta HPOSM1
 
-		lda #0  		; ptr2 = all missile sprite memory
-		jsr _getSpritePtr
-		sta ptr2 
-		stx ptr2+1
-
-		; Erase the old sprite
-		ldy prevSelectedTileSpriteY
-		ldx #selectedTileSprite_length*2
-		lda #0
-		loop_erase:
-			sta (ptr1),Y 
-			lda (ptr2),Y 
-			and #%11110011
-			sta (ptr2),Y
-			iny 
-			dex 
-			bne loop_erase
-
-		; Draw the sprite at the new Y position
-		pla 
-		sta prevSelectedTileSpriteY 	; update previous value
-		tay
-		ldx #0
-		loop_draw:
-			lda selectedTileSprite,x 	
-			sta (ptr1),Y 
-			lda (ptr2),Y 
-			ora #%00001000
-			sta (ptr2),Y
-			iny 
-			inx
-			cpx #selectedTileSprite_length 
-			bne loop_draw
-
-	set_X:
-		jsr popa  		; X = row * 4 + PMLeftMargin
-		asl a 
-		asl a 
-		clc 
-		adc #PMLeftMargin-1
-		sta HPOSP1
-		clc 
-		adc #8
-		sta HPOSM1
+	lda #1 
+	sta selectionHasMoved
 
 	rts
 .endproc

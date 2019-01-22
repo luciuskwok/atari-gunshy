@@ -33,7 +33,6 @@ uint8_t tileApex;
 
 
 // mouse.asm stuff
-void initMouse(void);
 extern uint8_t pointerHasMoved;
 extern point_t mouseLocation;
 
@@ -402,7 +401,6 @@ int main (void) {
 
 	// Init
 	initGraphics();
-	initMouse();
 	initVBI();
 	isQuitting = 0;
 

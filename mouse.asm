@@ -16,8 +16,7 @@
 
 ; Global Variables
 .data
-
-	.export _mouseLocation ; point_t mouseLocation; 
+.export _mouseLocation ; point_t mouseLocation; 
 	_mouseLocation:
 		_mouseLocX: .byte PMLeftMargin+12 ; start pointer in top-left
 		_mouseLocY: .byte PMTopMargin+8
@@ -30,30 +29,118 @@
 	mouseMinY: .byte PMTopMargin
 	mouseMaxY: .byte PMTopMargin+PMHeight-1
 
-
-
 	.export _pointerHasMoved
 	_pointerHasMoved: .byte 0
 
 	mouseQuadX: .byte 0
 	mouseQuadY: .byte 0
 
+.export selectionLocX, selectionLocY, selectionHasMoved
+	selectionLocX: .byte 0
+	selectionLocY: .byte 0
+	prevSelectionLocY: .byte 0
+	selectionHasMoved: .byte 0
+
+	selectionSprite:
+		.byte $FF, $80, $80, $80, $80, $80, $80, $80, $FF
+		selectionSprite_length = 9
+	selectionPattern:
+		.byte $F0, $E1, $C3, $87, $0F, $1E, $3C, $78, $F0
+		selectionPattern_length = 9
+
 .segment "EXTZP": zeropage
 	mouseSprite: .word 0
 	mouseTemp: .byte 0
 
+	selectionSpriteP: .word 0
+	selectionSpriteM: .word 0
+
 .code 
 
 
-.export _mouseVBI
-.proc _mouseVBI
+.export mouseImmediateVBI
+.proc mouseImmediateVBI
+	lda selectionHasMoved
+	bne updateSelection
+	lda RTCLOK_LSB
+	and #7
+	bne return 
+	updateSelection:
+		jsr drawSelection
+		jsr shiftSelectionPattern
+		lda #0
+		sta selectionHasMoved
+	return:
+		rts 
+.endproc 
+
+.proc drawSelection
+	; called within VBI
+
+	lda selectionLocX  	; if x==0: sprite is hidden
+	beq return 
+
+	lda selectionLocY
+	pha 
+
+	; Erase the old sprite
+	ldy prevSelectionLocY
+	ldx #selectionSprite_length
+	lda #0
+	loop_erase:
+		sta (selectionSpriteP),Y 
+		lda (selectionSpriteM),Y 
+		and #%11110011
+		sta (selectionSpriteM),Y
+		iny 
+		dex 
+		bne loop_erase
+
+	; Draw the sprite at the new Y position
+	pla 
+	sta prevSelectionLocY 	; update previous value
+	tay
+	ldx #0
+	loop_draw:
+		lda selectionSprite,X  	
+		and selectionPattern,X
+		sta (selectionSpriteP),Y 
+		lda (selectionSpriteM),Y 
+		ora #%00001000
+		and selectionPattern,X
+		sta (selectionSpriteM),Y
+		iny 
+		inx
+		cpx #selectionSprite_length 
+		bne loop_draw
+	return:	
+		rts 
+.endproc
+
+.proc shiftSelectionPattern 
+	ldy #0
+	loop:
+		lda selectionPattern,Y 
+		asl a 
+		bcc @no_bit
+			ora #1
+		@no_bit:
+		sta selectionPattern,Y
+		iny 
+		cpy #selectionPattern_length
+		bne loop 
+	rts
+.endproc 
+
+.export mouseDeferredVBI
+.proc mouseDeferredVBI
 	jsr handleJoystick
-	jsr redrawPointer 
+	jsr drawPointer 
 	rts 
 .endproc
 
-.proc redrawPointer
-	; Redraw the mouse pointer. This is called from the deferred VBI handler.
+.proc drawPointer
+	; Draw the mouse pointer. This is called from the deferred VBI handler.
 
 	; Set X position
 	lda _mouseLocX 
@@ -243,17 +330,27 @@
 	rts 
 .endproc 
 
-; void initMouse(void);
-.export _initMouse
-.proc _initMouse 
-	.import _spritePage
 
-	lda #0 				; set mouseSprite to point at player0 area
-	sta mouseSprite 	; which is 512 bytes into sprite area
-	lda _spritePage
-	clc 
-	adc #2
-	sta mouseSprite+1
+.export initMouse
+.proc initMouse 
+	; Called from initVBI
+	.import _spritePage
+	.import _getSpritePtr
+
+	lda #1 				; Use P0 (sprite 1) for mouse pointer.
+	jsr _getSpritePtr
+	sta mouseSprite
+	stx mouseSprite+1
+
+	lda #2 				; Use P1 (sprite 2) for part of selection.
+	jsr _getSpritePtr
+	sta selectionSpriteP
+	stx selectionSpriteP+1
+
+	lda #0				; Use missiles (sprite 0) for part of selection.
+	jsr _getSpritePtr
+	sta selectionSpriteM
+	stx selectionSpriteM+1
 
 	lda #<_timer1Handler ; Install timer 1 handler
 	sta VTIMR1 
