@@ -325,8 +325,8 @@ static void handleKeyboard(void) {
 int main (void) {
 	// Init
 	initGraphics();
-	//initMouse();
-	//initVBI();
+	initMouse();
+	initVBI();
 	isQuitting = 0;
 
 	// Test all charas

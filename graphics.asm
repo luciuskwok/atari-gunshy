@@ -11,7 +11,7 @@
 .rodata 
 
 	colorTable:
-		.byte $0E	; mouse pointer sprite
+		.byte $58	; mouse pointer sprite
 		.byte $0E	; P1 sprite
 		.byte $0E	; P2 sprite
 		.byte $00	; P3 sprite
@@ -139,9 +139,9 @@
 	adc #$40			; A += $40
 	rts
 	mid_char:
-		cmp #$60			; else if A < $60
+		cmp #$60		; else if A < $60
 		bcs return
-		sec					; A -= $20
+		sec				; A -= $20
 		sbc #$20
 	return:
 		rts
