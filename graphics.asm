@@ -124,7 +124,7 @@
 	rts 
 .endproc 
 
-; void printStringAtXY(const uint8_t *s, uint8_t x, uint8_t y);
+; void printStringAtXY(const char *s, uint8_t x, uint8_t y);
 .export _printStringAtXY
 .proc _printStringAtXY
 	.importzp ptr1
@@ -147,7 +147,7 @@
 	rts
 .endproc
 
-; void printString(const uint8_t *s);
+; void printString(const char *s);
 .export _printString
 .proc _printString 
 	.importzp ptr2
@@ -156,7 +156,7 @@
 		sta string 
 		stx string+1
 
-	jsr setSavadrToCursor ; uses sreg
+	jsr _setSavadrToCursor ; uses sreg
 
 	ldy #0
 	loop:
@@ -185,8 +185,9 @@
 	rts 	
 .endproc 
 
-.export setSavadrToCursor
-.proc setSavadrToCursor 
+; void setSavadrToCursor(void);
+.export _setSavadrToCursor
+.proc _setSavadrToCursor 
 	; Stores cursor address in SAVADR.
 	.import mulax40 ; uses sreg
 
@@ -336,7 +337,7 @@
 	.importzp ptr1
 	.import pushax 
 	.import zeroOutPtr1
-	.import _zeroOut16 
+	.import _zeroOutMemory
 
 	spriteArea = SAVADR
 		lda _spritePage
@@ -350,7 +351,7 @@
 		jsr pushax
 		lda #0			; length = 4*256 = 1 kB
 		ldx #4
-		jsr _zeroOut16 	
+		jsr _zeroOutMemory 	
 
 	; Clear GTIA registers 
 		lda #<HPOSP0

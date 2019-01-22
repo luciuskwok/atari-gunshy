@@ -1,9 +1,9 @@
 ; misc.asm 
 
 
-; void zeroOut16(UInt8 *ptr, UInt16 length);
-.export _zeroOut16
-.proc _zeroOut16
+; void zeroOutMemory(uint8_t *ptr, uint16_t length);
+.export _zeroOutMemory
+.proc _zeroOutMemory
 	.importzp sreg, ptr1 
 	.import popsreg
 

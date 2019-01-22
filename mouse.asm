@@ -17,10 +17,10 @@
 ; Global Variables
 .data
 
-.export _mouseLocation ; point_t mouseLocation; 
+	.export _mouseLocation ; point_t mouseLocation; 
 	_mouseLocation:
-		_mouseLocX: .byte 0
-		_mouseLocY: .byte 0
+		_mouseLocX: .byte PMLeftMargin+12 ; start pointer in top-left
+		_mouseLocY: .byte PMTopMargin+8
 
 	_prevMouseLocation:
 		_prevMouseLocX: .byte 0
@@ -32,6 +32,9 @@
 	_mouseMaxY: .byte PMTopMargin+PMHeight-1
 
 	_pointerColorCycle: .byte 1
+
+	.export _pointerHasMoved
+	_pointerHasMoved: .byte 0
 
 	mouseQuadX: .byte 0
 	mouseQuadY: .byte 0
@@ -82,8 +85,13 @@
 
 	; Set X position
 	lda _mouseLocX 
-	sta HPOSP0
-	sta _prevMouseLocX
+	cmp _prevMouseLocX
+	beq skip_x
+		sta HPOSP0
+		sta _prevMouseLocX
+		lda #1 
+		sta _pointerHasMoved
+	skip_x:
 
 	; Set Y position
 	lda _mouseLocY
@@ -116,6 +124,8 @@
 	
 		pla 
 		sta _prevMouseLocY
+		lda #1 
+		sta _pointerHasMoved
 	skip_y:
 	rts 
 .endproc 
@@ -272,14 +282,6 @@
 	clc 
 	adc #2
 	sta mouseSprite+1
-
-	lda #PMLeftMargin+80 ; Center mouse pointer on screen
-	sta _mouseLocX
-	lda #PMTopMargin+48
-	sta _mouseLocY
-	lda #0
-	sta _prevMouseLocX
-	sta _prevMouseLocY
 
 	lda #<_timer1Handler ; Install timer 1 handler
 	sta VTIMR1 

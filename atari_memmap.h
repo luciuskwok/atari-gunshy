@@ -28,8 +28,14 @@
 #define COLINC (0x7A)
 
 #define SHORT_CLOCK (PEEK(20) + 256 * PEEK(19))
-#define ATRACTc (*(char*)ATRACT)
-#define RESET_ATTRACT (POKE(ATRACT,0))
+
+// Accessors for C
+#define ATRACT_value (*(char*)ATRACT)
+#define SAVMSC_ptr (*(char**)SAVMSC)
+#define SAVADR_ptr (*(char**)SAVADR)
+#define ROWCRS_value (*(char*)ROWCRS)
+#define COLCRS_value (*(unsigned int*)COLCRS)
+
 
 // Page 2 - OS
 #define VDSLST (0x0200) /* Display list interrupt vector */

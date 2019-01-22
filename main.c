@@ -7,6 +7,7 @@
 
 // Includes
 #include "atari_memmap.h"
+#include "graphics.h"
 #include "types.h"
 #include <atari.h>
 
@@ -21,8 +22,9 @@ uint8_t tilesLevel3[4*2];
 uint8_t tileApex;
 
 
+
 // Constants
-#define row_bytes (40)
+#define RowBytes (40)
 #define middleLeftTileIndex (3*14)
 #define middleRightTile0Index (3*14+13)
 #define middleRightTile1Index (4*14+13)
@@ -30,13 +32,15 @@ uint8_t tileApex;
 #define PMTopMargin (16)
 
 
-// ASM
-void initGraphics(void);
+// mouse.asm stuff
 void initMouse(void);
+extern uint8_t pointerHasMoved;
+
+// interrupt.asm asm stuff
 void initVBI(void);
 
-uint8_t* getSpritePtr(uint8_t sprite);
-void printStringAtXY(const uint8_t *s, uint8_t x, uint8_t y);
+// misc.asm stuff
+void zeroOutMemory(uint8_t *ptr, uint16_t length);
 
 
 // Mapping from tile number to character number
@@ -89,25 +93,25 @@ const uint8_t level0RowHalfWidths[] = { 6, 4, 5, 6, 6, 5, 4, 6 };
 
 static void drawTile(uint8_t tile, uint8_t x, uint8_t y) {
 	// Uses ROWCRS and COLCRS to position origin of tile.
-	uint16_t offset = x + row_bytes * y;
+	uint16_t offset = x + RowBytes * y;
 	uint8_t *screen = (uint8_t*)PEEKW(SAVMSC);
 	const uint8_t *charIndex = &tileCharMap[((tile-1)%36) * 4];
 	const uint8_t frontTileMask = 0x80;
 
 	screen[offset] = charIndex[0]; // draw tile face
 	screen[offset+1] = charIndex[1];
-	screen[offset+row_bytes] = charIndex[2];
-	screen[offset+(row_bytes+1)] = charIndex[3];
-	screen[offset+(2*row_bytes)] = frontTileMask|2; // draw front-side of tile
-	screen[offset+(2*row_bytes+1)] = frontTileMask|3;
+	screen[offset+RowBytes] = charIndex[2];
+	screen[offset+(RowBytes+1)] = charIndex[3];
+	screen[offset+(2*RowBytes)] = frontTileMask|2; // draw front-side of tile
+	screen[offset+(2*RowBytes+1)] = frontTileMask|3;
 
 	// draw left-side of tile, if needed
-	if (screen[offset+(0*row_bytes-1)] == 0) {
-		screen[offset+(0*row_bytes-1)] = 1; 
+	if (screen[offset+(0*RowBytes-1)] == 0) {
+		screen[offset+(0*RowBytes-1)] = 1; 
 	}
-	if (screen[offset+(1*row_bytes-1)] == 0) {
-		screen[offset+(1*row_bytes-1)] = 1;
-		screen[offset+(2*row_bytes-1)] = 1;
+	if (screen[offset+(1*RowBytes-1)] == 0) {
+		screen[offset+(1*RowBytes-1)] = 1;
+		screen[offset+(2*RowBytes-1)] = 1;
 	}
 }
 
@@ -336,7 +340,35 @@ static void setApexTileLeftBorderSprite(void) {
 	}
 }
 
+static void printCommand(const char *key, const char *title) {
+	POKE(BITMSK, 0x80);
+	printString(key);
+	POKE(BITMSK, 0);
+	printString(title);
+}
+
+static void printMainCommandMenu(void) {
+	POKE(ROWCRS, 23);
+	POKE(COLCRS, 2);
+
+	printCommand("U", "ndo");
+	POKE(COLCRS, PEEK(COLCRS)+2);
+
+	printCommand("R", "estart");
+	POKE(COLCRS, PEEK(COLCRS)+2);
+
+	printCommand("N", "ew");
+	POKE(COLCRS, PEEK(COLCRS)+2);
+}
+
+static void printStatusLine(const char *s) {
+	zeroOutMemory(SAVMSC_ptr + RowBytes * 21, RowBytes);
+	printStringAtXY(s, 2, 21);
+}
+
 int main (void) {
+	uint8_t movePointerMessageVisible = 1;
+
 	// Init
 	initGraphics();
 	initMouse();
@@ -354,15 +386,25 @@ int main (void) {
 	// Add sprite data for apex tile left border
 	setApexTileLeftBorderSprite();
 
-	printStringAtXY("Hello, world!", 2, 22);
+	printStatusLine("Move pointer with joystick or mouse");
+	printMainCommandMenu();
 
 	// New game
 	initTileBoard();
 	drawTileBoard();
 
+	pointerHasMoved = 0; // Reset this because initially it will be set when pointer is drawn for the first time.
+
 	while (isQuitting == 0) {
 		handleKeyboard();
-		ATRACTc = 0;
+		ATRACT_value = 0;
+
+		if (movePointerMessageVisible && pointerHasMoved) {
+			movePointerMessageVisible = 0;
+			printStatusLine("Select a tile");
+
+
+		}
 	}
 
 	return 0; // success
