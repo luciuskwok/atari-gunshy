@@ -22,16 +22,15 @@
 		_mouseLocX: .byte PMLeftMargin+12 ; start pointer in top-left
 		_mouseLocY: .byte PMTopMargin+8
 
-	_prevMouseLocation:
-		_prevMouseLocX: .byte 0
-		_prevMouseLocY: .byte 0
+	prevMouseLocX: .byte 0
+	prevMouseLocY: .byte 0
 
-	_mouseMinX: .byte PMLeftMargin
-	_mouseMaxX: .byte PMLeftMargin+PMWidth-1
-	_mouseMinY: .byte PMTopMargin
-	_mouseMaxY: .byte PMTopMargin+PMHeight-1
+	mouseMinX: .byte PMLeftMargin
+	mouseMaxX: .byte PMLeftMargin+PMWidth-1
+	mouseMinY: .byte PMTopMargin
+	mouseMaxY: .byte PMTopMargin+PMHeight-1
 
-	_pointerColorCycle: .byte 1
+
 
 	.export _pointerHasMoved
 	_pointerHasMoved: .byte 0
@@ -48,60 +47,33 @@
 
 .export _mouseVBI
 .proc _mouseVBI
-	jsr cyclePointerColor
 	jsr handleJoystick
 	jsr redrawPointer 
 	rts 
 .endproc
-
-.proc cyclePointerColor
-
-	lda _pointerColorCycle
-	beq return 
-
-	lda RTCLOK_LSB		; update every 16 frames
-	tax 
-	and #$0F
-	bne return 
-		lda PCOLR0 		; mask out luminance
-		and #$F0
-		sta PCOLR0 
-
-		txa 
-		bpl @skip_eor
-			eor #$FF 	; negate value
-		@skip_eor:
-		lsr a
-		lsr a
-		lsr a
-		ora PCOLR0 
-		sta PCOLR0		; store new color value
-	return:
-	rts 
-.endproc 
 
 .proc redrawPointer
 	; Redraw the mouse pointer. This is called from the deferred VBI handler.
 
 	; Set X position
 	lda _mouseLocX 
-	cmp _prevMouseLocX
+	cmp prevMouseLocX
 	beq skip_x
 		sta HPOSP0
-		sta _prevMouseLocX
+		sta prevMouseLocX
 		lda #1 
 		sta _pointerHasMoved
 	skip_x:
 
 	; Set Y position
 	lda _mouseLocY
-	cmp _prevMouseLocY 
+	cmp prevMouseLocY 
 	beq skip_y
 		pha ; Save mouseLocY on stack 
 
 		; Erase old pointer
 		ldx #mousePointer_length
-		ldy _prevMouseLocY
+		ldy prevMouseLocY
 		lda #0
 		loop_erase:
 			sta (mouseSprite),Y 
@@ -123,7 +95,7 @@
 			bne loop_draw
 	
 		pla 
-		sta _prevMouseLocY
+		sta prevMouseLocY
 		lda #1 
 		sta _pointerHasMoved
 	skip_y:
@@ -167,13 +139,13 @@
 .proc movePointerX 
 	clc 
 	adc _mouseLocX 
-	cmp _mouseMinX 		; if x < mouseMinX: x = mouseMinX
+	cmp mouseMinX 		; if x < mouseMinX: x = mouseMinX
 	bcs not_less
-		lda _mouseMinX
+		lda mouseMinX
 	not_less:
-	cmp _mouseMaxX 		; if x >= mouseMaxX: x = mouseMaxX
+	cmp mouseMaxX 		; if x >= mouseMaxX: x = mouseMaxX
 	bcc not_more
-		lda _mouseMaxX
+		lda mouseMaxX
 	not_more:
 	sta _mouseLocX
 	rts
@@ -182,13 +154,13 @@
 .proc movePointerY 
 	clc 
 	adc _mouseLocY 
-	cmp _mouseMinY 		; if y < mouseMinY: y = mouseMinY
+	cmp mouseMinY 		; if y < mouseMinY: y = mouseMinY
 	bcs not_less
-		lda _mouseMinY
+		lda mouseMinY
 	not_less:
-	cmp _mouseMaxY 		; if y >= mouseMaxY: y = mouseMaxY
+	cmp mouseMaxY 		; if y >= mouseMaxY: y = mouseMaxY
 	bcc not_more
-		lda _mouseMaxY
+		lda mouseMaxY
 	not_more:
 	sta _mouseLocY
 	rts

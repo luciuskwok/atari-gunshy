@@ -16,22 +16,22 @@
 .rodata 
 
 	colorTable:
-		.byte $58	; P0: mouse pointer sprite
-		.byte $0E	; P1 sprite
+		.byte $58	; P0: mouse pointer
+		.byte $6A	; P1: selected tile effect 
 		.byte $0E	; P2 sprite
-		.byte $00	; P3: apex tile left border sprite
+		.byte $02	; P3: apex tile left border
 		.byte $0E	; COLOR0: white
 		.byte $36	; COLOR1: red
 		.byte $B4	; COLOR2: green
-		.byte $92	; COLOR3: blue
+		.byte $94	; COLOR3: blue
 		.byte $00	; COLOR4: background, black
 		.byte $0E	; COLOR5: DLI text luminance, white
 		.byte $B2	; COLOR6: DLI text bkgnd, dark green
 		.byte $00	; COLOR7: unused
 
 	selectedTileSprite:
-		.byte $FC, $84, $84, $84, $84, $84, $84, $84, $84, $FC
-		selectedTileSprite_length = 10
+		.byte $FF, $80, $80, $80, $80, $80, $80, $80, $FF
+		selectedTileSprite_length = 9
 
 ; Display List instructions
 	DL_JVB    = $41
@@ -54,7 +54,7 @@
 ; void setSelectedTile(uint8_t x, uint8_t y);
 .export _setSelectedTile 
 .proc _setSelectedTile
-	.importzp sreg 
+	.importzp ptr1, ptr2 
 	.import popa
 
 	asl a  			; Y = row * 4 + PMTopMargin
@@ -65,17 +65,25 @@
 	beq set_X
 		pha 
 
-		lda #1  		; Get player P0 sprite memory
+		lda #2  		; ptr1 = player P1 sprite memory
 		jsr _getSpritePtr
-		sta sreg 
-		stx sreg+1
+		sta ptr1 
+		stx ptr1+1
+
+		lda #0  		; ptr2 = all missile sprite memory
+		jsr _getSpritePtr
+		sta ptr2 
+		stx ptr2+1
 
 		; Erase the old sprite
 		ldy prevSelectedTileSpriteY
-		ldx #selectedTileSprite_length
+		ldx #selectedTileSprite_length*2
 		lda #0
 		loop_erase:
-			sta (sreg),Y 
+			sta (ptr1),Y 
+			lda (ptr2),Y 
+			and #%11110011
+			sta (ptr2),Y
 			iny 
 			dex 
 			bne loop_erase
@@ -84,11 +92,13 @@
 		pla 
 		sta prevSelectedTileSpriteY 	; update previous value
 		tay
-		pha 
 		ldx #0
 		loop_draw:
-			lda selectedTileSprite,x
-			sta (sreg),Y 
+			lda selectedTileSprite,x 	
+			sta (ptr1),Y 
+			lda (ptr2),Y 
+			ora #%00001000
+			sta (ptr2),Y
 			iny 
 			inx
 			cpx #selectedTileSprite_length 
@@ -99,8 +109,11 @@
 		asl a 
 		asl a 
 		clc 
-		adc #PMLeftMargin
+		adc #PMLeftMargin-1
 		sta HPOSP1
+		clc 
+		adc #8
+		sta HPOSM1
 
 	rts
 .endproc
@@ -361,10 +374,14 @@
 		ldy #12
 		jsr zeroOutPtr1
 
+	; Set specific sprite data
+		; lda #0		; P1 is single width (0=single, 1=double, 3=quad)
+		; sta SIZEP1 	; P1 is for the selected tile effect.
+
 	; Set up ANTIC
 		lda _spritePage 
 		sta PMBASE
-		lda #$11	; layer players above playfield, missiles use COLOR3
+		lda #$01	; layers sprites above everything
 		sta GPRIOR
 		lda #3		; enable both missiles & players 
 		sta GRACTL

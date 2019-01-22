@@ -48,7 +48,9 @@
 
 // Joystick
 #define STICK0 (0x0278)
+#define STICK1 (0x0279)
 #define STRIG0 (0x0284)
+#define STRIG1 (0x0285)
 
 // Text Window
 #define TXTMSC (0x0294) /* Pointer to text window memory */

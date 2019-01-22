@@ -35,6 +35,7 @@ uint8_t tileApex;
 // mouse.asm stuff
 void initMouse(void);
 extern uint8_t pointerHasMoved;
+extern point_t mouseLocation;
 
 // interrupt.asm asm stuff
 void initVBI(void);
@@ -207,9 +208,6 @@ static void drawTileBoard(void) {
 		y = centerY - 2;
 		drawTile(tile, x, y);
 	}
-	
-
-
 }
 
 static void initTileBoard(void) {
@@ -279,8 +277,6 @@ static void initTileBoard(void) {
 	++tile;
 	tilesLevel0[middleRightTile1Index] = tile;
 	++tile;
-
-
 }
 
 
@@ -309,9 +305,6 @@ static void keyDown(uint8_t keycode) {
 	}
 }
 
-static void keyUp(uint8_t /* keycode */) {
-}
-
 static void handleKeyboard(void) {
 	static uint8_t previousKeycode = 0xFF;
 	static uint8_t previousKeydown = 0;
@@ -320,15 +313,53 @@ static void handleKeyboard(void) {
 	uint8_t keycode = POKEY_READ.kbcode; // was POKEY_READ.kbcode
 
 	if (keycode != previousKeycode) {
-		keyUp(previousKeycode);
+		// keyUp(previousKeycode);
 		keyDown(keycode);
 	} else if (previousKeydown == 0 && isDown != 0) {
 		keyDown(keycode);
 	} else if (previousKeydown != 0 && isDown == 0) {
-		keyUp(keycode);
+		// keyUp(keycode);
 	}
 	previousKeydown = isDown;
 	previousKeycode = keycode;
+}
+
+static void mouseDown(void) {
+	uint8_t x = mouseLocation.x;
+	uint8_t y = mouseLocation.y;
+
+	x = (x - PMLeftMargin) / 4;
+	y = (y - PMTopMargin) / 4;
+
+	setSelectedTile(x, y);
+
+}
+
+static void handleTrigger(void) {
+	static uint8_t prevTrig0 = 0;
+	static uint8_t prevTrig1 = 0;
+	uint8_t trig0 = PEEK(STRIG0);
+	uint8_t trig1 = PEEK(STRIG1);
+
+	// Only the left mouse button is supported, since it is mapped to the joystick fire button on the Atari 9-pin joystick port.
+	// Mouse should be plugged into the second port (STICK1).
+	// Logic value = 0 means switch is closed, button is down.
+	if (prevTrig0 != trig0) {
+		prevTrig0 = trig0;
+		if (trig0 == 0) { 
+			// Button is down.
+			mouseDown();
+		}
+		// else mouseUp(), which isn't handled
+	}
+	if (prevTrig1 != trig1) {
+		prevTrig1 = trig1;
+		if (trig1 == 0) { 
+			// Button is down.
+			mouseDown();
+		}
+		// else mouseUp(), which isn't handled
+	}
 }
 
 static void setApexTileLeftBorderSprite(void) {
@@ -397,13 +428,12 @@ int main (void) {
 
 	while (isQuitting == 0) {
 		handleKeyboard();
+		handleTrigger();
 		ATRACT_value = 0;
 
 		if (movePointerMessageVisible && pointerHasMoved) {
 			movePointerMessageVisible = 0;
 			printStatusLine("Select a tile");
-
-
 		}
 	}
 

@@ -3,9 +3,9 @@
 .include "atari_memmap.inc"
 
 ; Global Variables
-.bss
-
-
+.data 
+	_enableColorCycling: .byte 1
+	
 .code 
 
 .export _initVBI
@@ -29,9 +29,34 @@
 
 
 .proc _immediateUserVBI
+	jsr cyclePointerColor
 	jmp SYSVBV			; jump to the OS immediate VBI routine
 .endproc
 
+.proc cyclePointerColor
+	lda _enableColorCycling
+	beq return 
+
+	lda RTCLOK_LSB		; update every 16 frames
+	tax 
+	and #$0F
+	bne return 
+		lda PCOLR0 		; mask out luminance
+		and #$F0
+		sta PCOLR0 
+
+		txa 
+		bpl @skip_eor
+			eor #$FF 	; negate value
+		@skip_eor:
+		lsr a
+		lsr a
+		lsr a
+		ora PCOLR0 
+		sta PCOLR0		; store new color value
+	return:
+	rts 
+.endproc 
 
 .proc _deferredUserVBI
 	.import _mouseVBI

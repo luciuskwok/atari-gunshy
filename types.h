@@ -14,7 +14,7 @@ typedef signed long int32_t;
 
 typedef struct point_t {
 	uint8_t x, y;
-} PointU8;
+} point_t;
 
 typedef struct DataBlock {
 	uint16_t length;
