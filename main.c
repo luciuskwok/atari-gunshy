@@ -60,10 +60,7 @@ uint8_t movesIndex;
 #define PMLeftMargin (48)
 #define PMTopMargin (16)
 
-const char sDiscs[] = "Discs";
-const char sChars[] = "Chars";
-const char sBamboo[] = "Bamboo";
-const char * tileSuits[3] = { sDiscs, sChars, sBamboo };
+const char * tileSuits[3] = { "Dots", "Wan", "Bamboo" };
 
 const char sEastWind[]  = "East Wind";
 const char sSouthWind[] = "South Wind";
