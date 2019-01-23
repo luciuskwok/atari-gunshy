@@ -22,7 +22,8 @@ extern point_t mouseLocation;
 
 // tile.asm stuff
 void drawTile(uint8_t tile, uint8_t x, uint8_t y);
-
+point_t tileLocation(uint8_t level, uint8_t row, uint8_t col);
+void drawTileBoard(void);
 
 // Typedef
 typedef struct TileSpecifier {
@@ -59,51 +60,6 @@ uint8_t movesIndex;
 #define middleRightTile1Index (4*14+13)
 #define PMLeftMargin (48)
 #define PMTopMargin (16)
-
-// Mapping from tile number to character number
-const uint8_t tileCharMap[] = {
-	0x88, 0x89, 0x8A, 0x8B, // 1 of discs
-	0x8C, 0x8D, 0x8E, 0x8F, // 2 of discs
-	0x90, 0x91, 0x92, 0x93, // 3 of discs
-	0x94, 0x95, 0x96, 0x97, // 4 of discs
-	0x98, 0x99, 0x9A, 0x9B, // 5 of discs
-	0x9C, 0x9D, 0x9E, 0x9F, // 6 of discs
-	0xA0, 0xA1, 0xA2, 0xA3, // 7 of discs
-	0xA4, 0xA5, 0xA6, 0xA7, // 8 of discs
-	0xA8, 0xA9, 0xAA, 0xAB, // 9 of discs
-
-	0x2C, 0x2D, 0x2E, 0x2F, // 1 of chars
-	0x30, 0x31, 0x2E, 0x2F, // 2 of chars
-	0x32, 0x33, 0x2E, 0x2F, // 3 of chars
-	0x34, 0x35, 0x2E, 0x2F, // 4 of chars
-	0x36, 0x37, 0x2E, 0x2F, // 5 of chars
-	0x38, 0x39, 0x2E, 0x2F, // 6 of chars
-	0x3A, 0x3B, 0x2E, 0x2F, // 7 of chars
-	0x3C, 0x3D, 0x2E, 0x2F, // 8 of chars
-	0x3E, 0x3F, 0x2E, 0x2F, // 9 of chars
-
-	0x40, 0x41, 0x42, 0xC3, // 1 of bamboo
-	0x44, 0x05, 0x46, 0x47, // 2 of bamboo
-	0x45, 0x05, 0x4A, 0x4B, // 3 of bamboo
-	0x48, 0x49, 0x4A, 0x4B, // 4 of bamboo
-	0x4C, 0x4D, 0x4E, 0x4F, // 5 of bamboo
-	0x50, 0x51, 0x52, 0x53, // 6 of bamboo
-	0x54, 0x55, 0x56, 0x57, // 7 of bamboo
-	0x58, 0x59, 0x5A, 0x5B, // 8 of bamboo
-	0x5C, 0x5D, 0x5E, 0x5F, // 9 of bamboo
-
-	0x64, 0x65, 0x66, 0x67, // East wind
-	0x6C, 0x6D, 0x6E, 0x6F, // South wind
-	0x68, 0x69, 0x6A, 0x6B, // West wind
-	0x60, 0x61, 0x62, 0x63, // North wind
-
-	0x70, 0x71, 0x72, 0x73, // Red dragon
-	0x74, 0x75, 0x76, 0x77, // Green dragon
-	0x04, 0x05, 0x06, 0x07, // White dragon
-	
-	0xF8, 0xF9, 0xFA, 0xFB, // Moon
-	0xFC, 0xFD, 0x7E, 0x7F, // Flower
-};
 
 const char sDiscs[] = "Discs";
 const char sChars[] = "Chars";
@@ -191,37 +147,9 @@ static void printMainCommandMenu(void) {
 	printTilesLeft();
 }
 
-
 static void printStatusLine(const char *s) {
 	clearLine(StatusLine);
 	printStringAtXY(s, 2, 21);
-}
-
-static void drawTileOld(uint8_t tile, uint8_t x, uint8_t y) {
-	// Uses ROWCRS and COLCRS to position origin of tile.
-	// Tile is in the range of 1...144 inclusive. 
-	uint16_t offset = x + RowBytes * y;
-	uint8_t *screen = (uint8_t*)PEEKW(SAVMSC);
-	const uint8_t *charIndex = &tileCharMap[((tile-1)%36) * 4];
-	const uint8_t frontTileMask = 0x80;
-
-	screen[offset] = charIndex[0]; // draw tile face
-	screen[offset+1] = charIndex[1];
-	screen[offset+RowBytes] = charIndex[2];
-	screen[offset+(RowBytes+1)] = charIndex[3];
-	screen[offset+(2*RowBytes)] = frontTileMask|2; // draw front-side of tile
-	screen[offset+(2*RowBytes+1)] = frontTileMask|3;
-
-	// draw left-side of tile, if needed
-	if (screen[offset+(0*RowBytes-1)] == 0) {
-		screen[offset+(0*RowBytes-1)] = 1; 
-	}
-	if (screen[offset+(1*RowBytes-1)] == 0) {
-		screen[offset+(1*RowBytes-1)] = 1;
-	}
-	if (screen[offset+(2*RowBytes-1)] == 0) {
-		screen[offset+(2*RowBytes-1)] = 1;
-	}
 }
 
 static void setApexTileLeftBorderVisible(uint8_t visible) {
@@ -232,7 +160,7 @@ static void setApexTileLeftBorderVisible(uint8_t visible) {
 	}
 }
 
-static point_t tileLocation(uint8_t level, uint8_t row, uint8_t col) {
+static point_t tileLocationOLD(uint8_t level, uint8_t row, uint8_t col) {
 	uint8_t offsetX = layerOffset[level].x;
 	uint8_t offsetY = layerOffset[level].y;
 	point_t loc;
@@ -256,7 +184,7 @@ static point_t tileLocation(uint8_t level, uint8_t row, uint8_t col) {
 	return loc;
 }
 
-static void drawTileBoard(void) {
+static void drawTileBoardC(void) {
 	uint8_t level, row, col, tile;
 	uint8_t layerWidth, layerHeight;
 	point_t loc;
@@ -317,7 +245,7 @@ static void startNewGame(void) {
 	uint8_t level, row, col;
 	uint8_t height, width;
 	uint8_t *layer;
-	uint8_t layerOffset;
+	uint8_t layerIndex;
 	uint8_t sortedTiles[144];
 	uint8_t tileIndex = 0;
 
@@ -331,8 +259,8 @@ static void startNewGame(void) {
 		width = layerSize[level].x;
 		for (row=0; row<height; ++row) {
 			for (col=0; col<width; ++col) {
-				layerOffset = row * width + col;
-				layer[layerOffset] = 0;
+				layerIndex = row * width + col;
+				layer[layerIndex] = 0;
 
 				if (level == 0) {
 					if (col < level0RowStart[row] || col >= level0RowEnd[row]) {
@@ -344,7 +272,7 @@ static void startNewGame(void) {
 					}
 				}
 
-				layer[layerOffset] = sortedTiles[tileIndex++];
+				layer[layerIndex] = sortedTiles[tileIndex++];
 			}
 		}
 	}

@@ -49,22 +49,189 @@ tileCharMap:
 	.byte $F8, $F9, $FA, $FB ; Moon
 	.byte $FC, $FD, $7E, $7F ; Flower
 
+layerOffset:
+	.byte 14, 9
+	.byte 8, 8
+	.byte 6, 7
+	.byte 4, 6
+	.byte 1, 6
+
 .code 
 
-; void drawTile(uint8_t tile, uint8_t x, uint8_t y);
+
+; void drawTileBoard(void);
+.export _drawTileBoard
+.proc _drawTileBoard
+	.importzp tmp1, tmp2, tmp3, tmp4
+	.importzp ptr1
+	.import _zeroOutMemory
+	.import pushax, pusha
+	.import _tileLayers
+	.import _layerSize
+
+
+	; Clear the screen
+	lda SAVMSC 
+	ldx SAVMSC+1
+	jsr pushax 
+	lda #<(RowBytes*20)
+	ldx #>(RowBytes*20)
+	jsr _zeroOutMemory
+
+	level = tmp1 
+	lda #0
+	sta level 
+
+	row = tmp2 
+	col = tmp3
+	layer = ptr1 
+	layerIndex = tmp4 
+
+
+	loop_level:
+		ldx level 
+		lda _tileLayers,X
+		sta layer 
+		lda _tileLayers+1,X 
+		sta layer+1
+
+		lda #0
+		sta layerIndex
+		sta row 
+		loop_row:
+			ldx level 
+			lda #0
+			sta col 
+			loop_col:
+				ldy layerIndex 
+				lda (layer),Y 
+				iny 
+				sty layerIndex 
+				cmp #0
+				beq next_col
+
+				pha ; tile value
+				lda level 
+				lsr a
+				jsr pusha 
+				lda row 
+				jsr pusha 
+				lda col 
+				jsr _tileLocation
+
+				dec COLCRS ; adjust for drawing code
+
+				pla ; tile value
+				jsr _drawTile
+			next_col:
+				lda col 
+				clc 
+				adc #1
+				sta col 
+				ldx level 
+				cmp _layerSize,X ; layerSize[level].x: layer width
+				bne loop_col 
+		next_row:
+			lda row 
+			clc 
+			adc #1 
+			sta row 
+			ldx level 
+			cmp _layerSize+1,X ; layerSize[level].y: layer height
+			bne loop_row
+	next_level:
+		lda level 
+		clc 
+		adc #2
+		sta level 
+		cmp #10
+		bne loop_level 
+
+	rts
+.endproc 
+
+; point_t tileLocation(uint8_t level, uint8_t row, uint8_t col);
+.export _tileLocation
+.proc _tileLocation
+	.import popa 
+	.import _boardCenter
+
+	; col = col * 2 + boardCenter.x - layerOffset[level].x
+	sta OLDCOL 
+	asl a 
+	clc 
+	adc _boardCenter 	; boardCenter.x
+	sta COLCRS 
+
+	; row = row * 2 + boardCenter.y - layerOffset[level].y
+	jsr popa 
+	sta OLDROW
+	asl a 
+	adc _boardCenter+1 	; boardCenter.y
+	sta ROWCRS
+
+	; offset = layerOffset[level]
+	jsr popa 			; level
+	asl a 
+	tax 
+	lda COLCRS
+	sec
+	sbc layerOffset,X 	; offset.x
+	sta COLCRS 
+
+	lda ROWCRS
+	sec
+	sbc layerOffset+1,X	; offset.y
+	sta ROWCRS 
+
+	; Special case for layer 0 far left and far right tiles
+	cpx #0
+	bne skip_layer0
+		lda OLDCOL
+		cmp #0 
+		bne skip_left_endcap
+			inc ROWCRS
+			jmp skip_layer0
+		skip_left_endcap:
+		cmp #13
+		bne skip_right_endcap
+			lda OLDROW
+			cmp #3
+			bne skip_second_to_last
+				inc ROWCRS
+				jmp skip_right_endcap
+			skip_second_to_last:
+			cmp #4
+			bne skip_last
+				dec ROWCRS
+				inc COLCRS
+				inc COLCRS
+			skip_last:
+		skip_right_endcap:
+	skip_layer0:
+
+	ldx ROWCRS 
+	lda COLCRS
+	rts 
+.endproc 
+
+
 .export _drawTile
 .proc _drawTile
-	.import popa 
+	; on entry: ROWCRS=y, COLCRS=x
+	.import popa
 	.import _setSavadrToCursor
 
-	sta ROWCRS 		; y
-	jsr popa
-	sec 
-	sbc #1
-	sta COLCRS 		; x
-	jsr _setSavadrToCursor
+    ;sta ROWCRS         ; y
+    ;jsr popa
+    ;sec 
+    ;sbc #1
+    ;sta COLCRS         ; x
+    ;jsr popa 
 
-	jsr popa 
+    pha 
+	jsr _setSavadrToCursor
+	pla 
 	sec 
 	sbc #1 
 	and #$FC 		; mask out lower 2 bits to get offset into tileCharMap
