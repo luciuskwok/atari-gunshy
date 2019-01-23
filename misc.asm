@@ -5,14 +5,16 @@
 .export _zeroOutMemory
 .proc _zeroOutMemory
 	.importzp sreg, ptr1 
-	.import popsreg
+	.import popax
 
 	length = ptr1 
 	sta length			; ptr1 = parmeter 'length'
 	stx length+1
 
 	ptr = sreg
-	jsr popsreg			; sreg = parameter 'ptr'
+	jsr popax 
+	sta ptr
+	stx ptr+1
 
 	jsr addSregToPtr1	; set length to point at end of area to zero out
 

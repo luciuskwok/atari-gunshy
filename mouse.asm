@@ -65,9 +65,11 @@
 	lda RTCLOK_LSB
 	and #7
 	bne return 
+
 	updateSelection:
 		; Set x-position here to avoid having x and y positions update separately.
 		lda selectionLocX 	
+		beq return  	; if x==0: sprite is hidden
 		sta HPOSP1
 		clc 
 		adc #8
@@ -83,10 +85,6 @@
 
 .proc drawSelection
 	; called within VBI
-
-	lda selectionLocX  	; if x==0: sprite is hidden
-	beq return 
-
 	lda selectionLocY
 	pha 
 

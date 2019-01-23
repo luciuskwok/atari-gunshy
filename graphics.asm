@@ -47,9 +47,9 @@
 	DL_TILE   = $04
 .code
 
-; void setSelectedTile(uint8_t x, uint8_t y);
-.export _setSelectedTile 
-.proc _setSelectedTile
+; void setSelectionLocation(uint8_t x, uint8_t y);
+.export _setSelectionLocation
+.proc _setSelectionLocation
 	.import popa
 	.import selectionLocX, selectionLocY, selectionHasMoved
 
@@ -72,6 +72,18 @@
 	rts
 .endproc
 
+; void hideSelection(void);
+.export _hideSelection
+.proc _hideSelection 
+	.import selectionLocX
+	lda #0
+	sta selectionLocX
+	sta HPOSP1
+	sta HPOSM1
+	rts
+.endproc 	
+
+
 ; uint8_t* getSpritePtr(uint8_t sprite);
 .export _getSpritePtr
 .proc _getSpritePtr
@@ -89,67 +101,6 @@
 	tax 		; MSB in X for return result
 	tya 		; LSB in A for return result
 	rts 
-.endproc 
-
-; void printStringAtXY(const char *s, uint8_t x, uint8_t y);
-.export _printStringAtXY
-.proc _printStringAtXY
-	.importzp ptr1
-	.import popptr1, popa
-
-	sta ROWCRS   		; parameter 'y'
-
-	jsr popa  			; parameter 'x'
-	sta COLCRS 
-	sta LMARGN
-
-	lda #0
-	sta BITMSK 			; set BITMASK to 0 
-	
-	jsr popptr1 		; parameter 's'
-	lda ptr1
-	ldx ptr1+1
-
-	jsr _printString
-	rts
-.endproc
-
-; void printString(const char *s);
-.export _printString
-.proc _printString 
-	.importzp ptr2
-
-	string = ptr2 
-		sta string 
-		stx string+1
-
-	jsr _setSavadrToCursor ; uses sreg
-
-	ldy #0
-	loop:
-		lda(string),Y
-		beq inc_colcrs		; if string[Y] == 0: break
-		jsr _toAtascii
-		ora BITMSK
-		sta(SAVADR),Y		; screen[Y] = string[Y]
-		iny
-		bne loop
-	inc_colcrs:
-		tya 
-		clc 
-		adc COLCRS
-		sta COLCRS
-	return:
-		rts
-.endproc 
-
-; void moveToNextLine(void);
-.export _moveToNextLine 
-.proc _moveToNextLine 
-	lda LMARGN 
-	sta COLCRS 
-	inc ROWCRS
-	rts 	
 .endproc 
 
 ; void setSavadrToCursor(void);
@@ -180,22 +131,6 @@
 	rts 
 .endproc
 
-; uint8_t toAtascii(uint8_t c);
-.export _toAtascii
-.proc _toAtascii
-	cmp #$20			; if A < $20: 
-	bcs mid_char
-	adc #$40			; A += $40
-	rts
-	mid_char:
-		cmp #$60		; else if A < $60
-		bcs return
-		sec				; A -= $20
-		sbc #$20
-	return:
-		rts
-.endproc
-
 ; void delayTicks(uint8_t ticks);
 .export _delayTicks
 .proc _delayTicks
@@ -210,6 +145,7 @@
 ; void initGraphics(void);
 .export _initGraphics
 .proc _initGraphics
+	.import _initVBI
 
 	; Constants
 	anticOptions = $2E 	; normal playfield, enable players & missiles, enable DMA
@@ -242,6 +178,7 @@
 
 	jsr initDisplayList
 	jsr initSprite
+	jsr _initVBI
 
 	; Restore screen
 	lda #$20 		; switch to custom font
@@ -342,4 +279,3 @@
 
 	rts
 .endproc 
-

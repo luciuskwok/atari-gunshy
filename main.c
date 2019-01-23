@@ -8,9 +8,25 @@
 // Includes
 #include "atari_memmap.h"
 #include "graphics.h"
+#include "text.h"
 #include "types.h"
 #include <atari.h>
 
+
+// mouse.asm stuff
+extern uint8_t pointerHasMoved;
+extern point_t mouseLocation;
+
+// misc.asm stuff
+void zeroOutMemory(uint8_t *ptr, uint16_t length);
+
+// Typedef
+typedef struct TileSpecifier {
+	uint8_t value;
+	uint8_t level;
+	uint8_t x;
+	uint8_t y;
+} TileSpecifier;
 
 // Globals
 uint8_t isQuitting;
@@ -21,7 +37,12 @@ uint8_t tilesLevel2[6*4];
 uint8_t tilesLevel3[4*2];
 uint8_t tileApex;
 
+uint8_t *tileLayers[5] = {
+	tilesLevel0, tilesLevel1, tilesLevel2, tilesLevel3, &tileApex
+};
 
+uint8_t tilesRemaining;
+TileSpecifier firstTileSelected;
 
 // Constants
 #define RowBytes (40)
@@ -30,18 +51,6 @@ uint8_t tileApex;
 #define middleRightTile1Index (4*14+13)
 #define PMLeftMargin (48)
 #define PMTopMargin (16)
-
-
-// mouse.asm stuff
-extern uint8_t pointerHasMoved;
-extern point_t mouseLocation;
-
-// interrupt.asm asm stuff
-void initVBI(void);
-
-// misc.asm stuff
-void zeroOutMemory(uint8_t *ptr, uint16_t length);
-
 
 // Mapping from tile number to character number
 const uint8_t tileCharMap[] = {
@@ -75,10 +84,10 @@ const uint8_t tileCharMap[] = {
 	0x58, 0x59, 0x5A, 0x5B, // 8 of bamboo
 	0x5C, 0x5D, 0x5E, 0x5F, // 9 of bamboo
 
-	0x60, 0x61, 0x62, 0x63, // North wind
 	0x64, 0x65, 0x66, 0x67, // East wind
-	0x68, 0x69, 0x6A, 0x6B, // West wind
 	0x6C, 0x6D, 0x6E, 0x6F, // South wind
+	0x68, 0x69, 0x6A, 0x6B, // West wind
+	0x60, 0x61, 0x62, 0x63, // North wind
 
 	0x70, 0x71, 0x72, 0x73, // Red dragon
 	0x74, 0x75, 0x76, 0x77, // Green dragon
@@ -88,11 +97,83 @@ const uint8_t tileCharMap[] = {
 	0xFC, 0xFD, 0x7E, 0x7F, // Flower
 };
 
+const char sDiscs[] = "Discs";
+const char sChars[] = "Chars";
+const char sBamboo[] = "Bamboo";
+const char * tileSuits[3] = { sDiscs, sChars, sBamboo };
+
+const char sEastWind[]  = "East Wind";
+const char sSouthWind[] = "South Wind";
+const char sWestWind[]  = "West Wind";
+const char sNorthWind[] = "North Wind";
+const char sRedDragon[] = "Red Dragon";
+const char sGreenDragon[] = "Green Dragon";
+const char sWhiteDragon[] = "White Dragon";
+const char sMoon[] = "Moon";
+const char sFlower[] = "Flower";
+const char * tileNames[9] = {
+	sEastWind, sSouthWind, sWestWind, sNorthWind, 
+	sRedDragon, sGreenDragon, sWhiteDragon, sMoon, sFlower
+};
+
+// Position offsets from center for each tile layer
+const point_t layerOffset[5] = {
+	{ 14, 9 }, 
+	{  8, 8 }, 
+	{  6, 7 },
+	{  4, 6 }, 
+	{  1, 6 }
+};
+
+// Layer dimensions
+const point_t layerSize[5] = {
+	{ 14, 8 },
+	{  8, 6 },
+	{  6, 4 },
+	{  4, 2 },
+	{  1, 1 }
+};
+
+// Center of tile board
+const point_t boardCenter = { 20, 11 };
 
 const uint8_t level0RowHalfWidths[] = { 6, 4, 5, 6, 6, 5, 4, 6 };
 
+
+
+static void printCommand(const char *key, const char *title) {
+	POKE(BITMSK, 0x80);
+	printString(key);
+	POKE(BITMSK, 0);
+	printString(title);
+}
+
+static void printMainCommandMenu(void) {
+	POKE(ROWCRS, 23);
+	POKE(COLCRS, 2);
+
+	printCommand("U", "ndo");
+	POKE(COLCRS, PEEK(COLCRS)+2);
+
+	printCommand("R", "estart");
+	POKE(COLCRS, PEEK(COLCRS)+2);
+
+	printCommand("N", "ew");
+	POKE(COLCRS, PEEK(COLCRS)+2);
+}
+
+static void clearStatusLine(void) {
+	zeroOutMemory(SAVMSC_ptr + RowBytes * 21, RowBytes);
+}
+
+static void printStatusLine(const char *s) {
+	clearStatusLine();
+	printStringAtXY(s, 2, 21);
+}
+
 static void drawTile(uint8_t tile, uint8_t x, uint8_t y) {
 	// Uses ROWCRS and COLCRS to position origin of tile.
+	// Tile is in the range of 1...144 inclusive. 
 	uint16_t offset = x + RowBytes * y;
 	uint8_t *screen = (uint8_t*)PEEKW(SAVMSC);
 	const uint8_t *charIndex = &tileCharMap[((tile-1)%36) * 4];
@@ -123,89 +204,57 @@ static void setApexTileLeftBorderVisible(uint8_t visible) {
 	}
 }
 
+static point_t tileLocation(uint8_t level, uint8_t row, uint8_t col) {
+	uint8_t offsetX = layerOffset[level].x;
+	uint8_t offsetY = layerOffset[level].y;
+	point_t loc;
+
+	loc.x = boardCenter.x + col * 2 - offsetX;
+	loc.y = boardCenter.y + row * 2 - offsetY;
+
+	// Special case for far left and far right tiles
+	if (level == 0) {
+		if (col == 0) {
+			loc.y += 1;
+		} else if (col == 13) {
+			if (row == 3) {
+				loc.y += 1;
+			} else if (row == 4) {
+				loc.y -= 1;
+				loc.x += 2;
+			}
+		}
+	}
+	return loc;
+}
+
 static void drawTileBoard(void) {
-	const uint8_t centerX = 20;
-	const uint8_t centerY = 11;
-	uint8_t x, y, row, col, tile;
+	uint8_t level, row, col, tile;
+	uint8_t layerWidth, layerHeight;
+	point_t loc;
+	uint8_t *layer;
 
-	// Draw level 0
-	for (row=0; row<8; ++row) {
-		for (col=1; col<13; ++col) {
-			tile = tilesLevel0[col + row * 14];
-			if (tile) {
-				x = centerX + col * 2 - 14;
-				y = centerY + row * 2 - 9;
-				drawTile(tile, x, y);
-			}
-		}
-	}
+	for (level=0; level<5; ++level) {
+		layer = tileLayers[level];
+		layerWidth = layerSize[level].x;
+		layerHeight = layerSize[level].y;
 
-	// Draw level 1
-	for (row=0; row<6; ++row) {
-		for (col=1; col<7; ++col) {
-			tile = tilesLevel1[col + row * 8];
-			if (tile) {
-				x = centerX + col * 2 - 8;
-				y = centerY + row * 2 - 8;
-				drawTile(tile, x, y);
-			}
-		}
-	}
-
-	// Draw level 2
-	for (row=0; row<4; ++row) {
-		for (col=1; col<5; ++col) {
-			tile = tilesLevel2[col + row * 6];
-			if (tile) {
-				x = centerX + col * 2 - 6;
-				y = centerY + row * 2 - 7;
-				drawTile(tile, x, y);
-			}
-		}
-	}
-
-	// Draw level 3
-	for (row=0; row<2; ++row) {
-		for (col=1; col<3; ++col) {
-			tile = tilesLevel3[col + row * 4];
-			if (tile) {
-				x = centerX + col * 2 - 4;
-				y = centerY + row * 2 - 6;
-				drawTile(tile, x, y);
+		for (row=0; row<layerHeight; ++row) {
+			for (col=0; col<layerWidth; ++col) {
+				tile = layer[col + row * layerWidth];
+				if (tile) {
+					loc = tileLocation(level, row, col);
+					drawTile(tile, loc.x, loc.y);
+				}
 			}
 		}
 	}
 
 	// Draw apex tile
 	if (tileApex) {
-		x = centerX - 1;
-		y = centerY - 6;
-		drawTile(tileApex, x, y);
 		setApexTileLeftBorderVisible(1);
 	} else {
 		setApexTileLeftBorderVisible(0);
-	}
-
-	// Draw middle-left end tile
-	tile = tilesLevel0[middleLeftTileIndex];
-	if (tile) {
-		x = centerX - 14;
-		y = centerY - 2;
-		drawTile(tile, x, y);
-	}
-
-	// Draw middle-right tiles
-	tile = tilesLevel0[middleRightTile0Index];
-	if (tile) {
-		x = centerX + 12;
-		y = centerY - 2;
-		drawTile(tile, x, y);
-	}
-	tile = tilesLevel0[middleRightTile1Index];
-	if (tile) {
-		x = centerX + 14;
-		y = centerY - 2;
-		drawTile(tile, x, y);
 	}
 }
 
@@ -278,7 +327,6 @@ static void initTileBoard(void) {
 	++tile;
 }
 
-
 static void keyDown(uint8_t keycode) {
 	uint8_t shift = keycode & 0x40;
 	uint8_t control = keycode & 0x80;
@@ -287,7 +335,7 @@ static void keyDown(uint8_t keycode) {
 
 	switch (keycode & 0x3F) {
 		case KEY_DELETE:
-		case KEY_Z:
+		case KEY_U:
 			// Handle "Undo Move" 
 			break;
 
@@ -323,15 +371,121 @@ static void handleKeyboard(void) {
 	previousKeycode = keycode;
 }
 
+static uint8_t pointInRect(uint8_t ptx, uint8_t pty, uint8_t rx, uint8_t ry, uint8_t rw, uint8_t rh) {
+	if (rx <= ptx && ptx < rx+rw && ry <= pty && pty < ry+rh) {
+		return 1;
+	} // else:
+	return 0;
+}
+
+static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
+	int8_t level, row, col;
+	int8_t layerWidth, layerHeight;
+	uint8_t tile;
+	uint8_t *layer;
+	point_t loc;
+
+	// Set outTile to none
+	outTile->value = 0;
+
+	// Search from top layer to bottom layer, front to back.
+	for (level=4; level>=0; --level) {
+		layer = tileLayers[level];
+		layerWidth = layerSize[level].x;
+		layerHeight = layerSize[level].y;
+
+		for (row=layerHeight-1; row>=0; --row) {
+			for (col=layerWidth-1; col>=0; --col) {
+				tile = layer[col + row * layerWidth];
+				if (tile) {
+					loc = tileLocation(level, row, col);
+					if (pointInRect(x, y, loc.x, loc.y, 2, 3)) {
+						outTile->value = tile;
+						outTile->x = col;
+						outTile->y = row;
+						outTile->level = level;
+						return;
+					}
+				}
+			}
+		}
+	}
+}
+
+static void printTileInfo(TileSpecifier *tile) {
+	char s[8];
+	uint8_t value = (tile->value - 1) % 36;
+	uint8_t suit;
+
+	clearStatusLine();
+	ROWCRS_value = 21;
+	COLCRS_value = 2;
+
+	printString("Tile: ");
+
+	if (value < 27) {
+		// Suits
+		suit = value / 9;
+		value = value % 9;
+
+		uint16String(s, value+1);
+		printString(s);
+
+		printString(" of ");
+		printString(tileSuits[suit]);
+	} else {
+		printString(tileNames[value-27]);
+	}
+}
+
+static void selectTile(TileSpecifier *tile) {
+	point_t loc;
+
+	loc = tileLocation(tile->level, tile->y, tile->x);
+	setSelectionLocation(loc.x, loc.y);
+
+	firstTileSelected.value = tile->value;
+	firstTileSelected.x = tile->x;
+	firstTileSelected.y = tile->y;
+	firstTileSelected.level = tile->level;
+
+	// Print info on selected tile
+	printTileInfo(tile);
+}
+
+static void deselectTile(void) {
+	hideSelection();
+	firstTileSelected.value = 0;
+	printStatusLine("Select a tile");
+}
+
 static void mouseDown(void) {
 	uint8_t x = mouseLocation.x;
 	uint8_t y = mouseLocation.y;
+	uint8_t wasSelected = 0;
+	TileSpecifier tileHit;
 
 	x = (x - PMLeftMargin) / 4;
 	y = (y - PMTopMargin) / 4;
 
-	setSelectedTile(x, y);
+	// Select the tile if no tile was selected or previously selected tile does not match. Otherwise, remove the matching pair of tiles.
 
+	getTileHit(&tileHit, x, y);
+	if (tileHit.value) {
+		if (tileHit.value != firstTileSelected.value && ((tileHit.value-1)%36 == (firstTileSelected.value-1)%36)) {
+			// Tiles match if they are one of 4 identical tiles, but don't match the exact same instance of the tile already selected.
+			// TODO: remove tile
+		} else {
+			// Change the selection to the selected tile, if tile is free.
+			// TODO: check if tile is free
+			selectTile(&tileHit);
+			wasSelected = 1;
+		}
+	}
+
+	if (firstTileSelected.value && wasSelected == 0) {
+		deselectTile();
+	}
 }
 
 static void handleTrigger(void) {
@@ -361,47 +515,11 @@ static void handleTrigger(void) {
 	}
 }
 
-static void setApexTileLeftBorderSprite(void) {
-	uint8_t *sprite = getSpritePtr(4);
-	uint8_t y;
-
-	for (y=0; y<10; ++y) {
-		sprite[PMTopMargin+5*4+1+y] = 0x80;
-	}
-}
-
-static void printCommand(const char *key, const char *title) {
-	POKE(BITMSK, 0x80);
-	printString(key);
-	POKE(BITMSK, 0);
-	printString(title);
-}
-
-static void printMainCommandMenu(void) {
-	POKE(ROWCRS, 23);
-	POKE(COLCRS, 2);
-
-	printCommand("U", "ndo");
-	POKE(COLCRS, PEEK(COLCRS)+2);
-
-	printCommand("R", "estart");
-	POKE(COLCRS, PEEK(COLCRS)+2);
-
-	printCommand("N", "ew");
-	POKE(COLCRS, PEEK(COLCRS)+2);
-}
-
-static void printStatusLine(const char *s) {
-	zeroOutMemory(SAVMSC_ptr + RowBytes * 21, RowBytes);
-	printStringAtXY(s, 2, 21);
-}
-
 int main (void) {
 	uint8_t movePointerMessageVisible = 1;
 
 	// Init
 	initGraphics();
-	initVBI();
 	isQuitting = 0;
 
 	// Test all charas
@@ -413,7 +531,13 @@ int main (void) {
 	// }
 
 	// Add sprite data for apex tile left border
-	setApexTileLeftBorderSprite();
+	{
+		uint8_t *sprite = getSpritePtr(4);
+		uint8_t y;
+		for (y=0; y<10; ++y) {
+			sprite[PMTopMargin+5*4+1+y] = 0x80;
+		}
+	}
 
 	printStatusLine("Move pointer with joystick or mouse");
 	printMainCommandMenu();
