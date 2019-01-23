@@ -258,6 +258,8 @@ static void drawTileBoard(void) {
 	point_t loc;
 	uint8_t *layer;
 
+	uint16_t startTime = Clock16;
+
 	zeroOutMemory(SAVMSC_ptr, RowBytes * 20);
 
 	for (level=0; level<5; ++level) {
@@ -276,11 +278,19 @@ static void drawTileBoard(void) {
 		}
 	}
 
-	// Draw apex tile
+	// Add missing left-border to apex tile
 	if (tileApex) {
 		setApexTileLeftBorderVisible(1);
 	} else {
 		setApexTileLeftBorderVisible(0);
+	}
+
+	// Print duration
+	{
+		char s[6];
+		uint8_t len = uint16String(s, Clock16 - startTime);
+		printStringAtXY("     ", 35, 22);
+		printStringAtXY(s, 40-len, 22);
 	}
 }
 

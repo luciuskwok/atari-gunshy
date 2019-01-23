@@ -27,7 +27,7 @@
 #define ROWINC (0x79)
 #define COLINC (0x7A)
 
-#define SHORT_CLOCK (PEEK(20) + 256 * PEEK(19))
+#define Clock16 (PEEK(20) + 256 * PEEK(19))
 
 // Accessors for C
 #define ATRACT_value (*(char*)ATRACT)
