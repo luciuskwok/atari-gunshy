@@ -402,7 +402,7 @@ static uint8_t isTileFree(TileSpecifier *tile) {
 
 static void printTileInfo(TileSpecifier *tile) {
 	char s[8];
-	uint8_t value = (tile->value - 1) % 36;
+	uint8_t value = (tile->value - 1) / 4;
 	uint8_t suit;
 
 	clearLine(StatusLine);
