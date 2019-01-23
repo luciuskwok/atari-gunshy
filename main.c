@@ -13,12 +13,16 @@
 #include <atari.h>
 
 
+// misc.asm stuff
+void zeroOutMemory(uint8_t *ptr, uint16_t length);
+
 // mouse.asm stuff
 extern uint8_t pointerHasMoved;
 extern point_t mouseLocation;
 
-// misc.asm stuff
-void zeroOutMemory(uint8_t *ptr, uint16_t length);
+// tile.asm stuff
+void drawTile(uint8_t tile, uint8_t x, uint8_t y);
+
 
 // Typedef
 typedef struct TileSpecifier {
@@ -193,7 +197,7 @@ static void printStatusLine(const char *s) {
 	printStringAtXY(s, 2, 21);
 }
 
-static void drawTile(uint8_t tile, uint8_t x, uint8_t y) {
+static void drawTileOld(uint8_t tile, uint8_t x, uint8_t y) {
 	// Uses ROWCRS and COLCRS to position origin of tile.
 	// Tile is in the range of 1...144 inclusive. 
 	uint16_t offset = x + RowBytes * y;
@@ -294,12 +298,31 @@ static void drawTileBoard(void) {
 	}
 }
 
+static void getShuffledTiles(uint8_t *outArray) {
+	// This version just creates an array in order, for testing.
+	uint8_t x;
+	uint8_t value = 1;
+
+	for (x=0; x<144; ++x) {
+		outArray[x] = value;
+
+		value += 4; 
+		if (value > 144) {
+			value = value - 143;
+		}
+	}
+}
+
 static void startNewGame(void) {
 	uint8_t level, row, col;
 	uint8_t height, width;
 	uint8_t *layer;
 	uint8_t layerOffset;
-	uint8_t tileIndex = 1;
+	uint8_t sortedTiles[144];
+	uint8_t tileIndex = 0;
+
+	// Sort tiles
+	getShuffledTiles(sortedTiles);
 
 	// Place tiles in regular positions, skipping ends of rows.
 	for (level=0; level<5; ++level) {
@@ -321,7 +344,7 @@ static void startNewGame(void) {
 					}
 				}
 
-				layer[layerOffset] = tileIndex++;
+				layer[layerOffset] = sortedTiles[tileIndex++];
 			}
 		}
 	}
@@ -601,7 +624,7 @@ static void mouseDown(void) {
 	if (tileHit.value) {
 		uint8_t isFree = isTileFree(&tileHit);
 		if (isFree) {
-			if (firstTileSelected.value && tileHit.value != firstTileSelected.value && ((tileHit.value-1)%36 == (firstTileSelected.value-1)%36)) {
+			if (firstTileSelected.value && tileHit.value != firstTileSelected.value && ((tileHit.value-1)/4 == (firstTileSelected.value-1)/4)) {
 				// Tiles match if they are one of 4 identical tiles, but don't match the exact same instance of the tile already selected.
 				removeTile(&firstTileSelected);
 				removeTile(&tileHit);
