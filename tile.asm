@@ -67,8 +67,8 @@ layerOffset:
 	.import _zeroOutMemory
 	.import pushax, pusha
 	.import _tileLayers
+	.import _tileApex
 	.import _layerSize
-
 
 	; Clear the screen
 	lda SAVMSC 
@@ -146,6 +146,13 @@ layerOffset:
 		sta level 
 		cmp #10
 		bne loop_level 
+
+	apex_tile:
+		lda _tileApex 
+		beq skip_show_border
+			lda #PMLeftMargin+75
+		skip_show_border:
+		sta HPOSP3
 
 	rts
 .endproc 

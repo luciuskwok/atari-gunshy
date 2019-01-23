@@ -2,6 +2,7 @@
 	
 	; Zero page OS
 	POKMSK    = $10   		; Shadow of IRQEN
+	RTCLOK    = $12 		; 
 	RTCLOK_LSB = $14 		; LSB of internal clock
 
 	TMPCHR    = $50 		; Temporary register used by display handler

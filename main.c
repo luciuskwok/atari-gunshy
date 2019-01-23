@@ -21,7 +21,6 @@ extern uint8_t pointerHasMoved;
 extern point_t mouseLocation;
 
 // tile.asm stuff
-void drawTile(uint8_t tile, uint8_t x, uint8_t y);
 point_t tileLocation(uint8_t level, uint8_t row, uint8_t col);
 void drawTileBoard(void);
 
@@ -111,6 +110,20 @@ const uint8_t level0RowEnd[] = { 13, 11, 12, 14, 14, 12, 11, 13 };
 #define CommandsLine (23)
 
 
+static void drawTileBoardTimed(void) {
+    uint16_t startTime = Clock16;
+    
+    drawTileBoard();
+
+    // Print duration
+    {
+        char s[6];
+        uint8_t len = uint16String(s, Clock16 - startTime);
+        printStringAtXY("     ", 35, 22);
+        printStringAtXY(s, 40-len, 22);
+    }  
+}
+
 static void printCommand(const char *key, const char *title) {
 	POKE(BITMSK, 0x80);
 	printString(key);
@@ -157,72 +170,6 @@ static void setApexTileLeftBorderVisible(uint8_t visible) {
 		POKE(HPOSP3, PMLeftMargin+75);
 	} else {
 		POKE(HPOSP3, 0);
-	}
-}
-
-static point_t tileLocationOLD(uint8_t level, uint8_t row, uint8_t col) {
-	uint8_t offsetX = layerOffset[level].x;
-	uint8_t offsetY = layerOffset[level].y;
-	point_t loc;
-
-	loc.x = boardCenter.x + col * 2 - offsetX;
-	loc.y = boardCenter.y + row * 2 - offsetY;
-
-	// Special case for far left and far right tiles
-	if (level == 0) {
-		if (col == 0) {
-			loc.y += 1;
-		} else if (col == 13) {
-			if (row == 3) {
-				loc.y += 1;
-			} else if (row == 4) {
-				loc.y -= 1;
-				loc.x += 2;
-			}
-		}
-	}
-	return loc;
-}
-
-static void drawTileBoardC(void) {
-	uint8_t level, row, col, tile;
-	uint8_t layerWidth, layerHeight;
-	point_t loc;
-	uint8_t *layer;
-
-	uint16_t startTime = Clock16;
-
-	zeroOutMemory(SAVMSC_ptr, RowBytes * 20);
-
-	for (level=0; level<5; ++level) {
-		layer = tileLayers[level];
-		layerWidth = layerSize[level].x;
-		layerHeight = layerSize[level].y;
-
-		for (row=0; row<layerHeight; ++row) {
-			for (col=0; col<layerWidth; ++col) {
-				tile = layer[col + row * layerWidth];
-				if (tile) {
-					loc = tileLocation(level, row, col);
-					drawTile(tile, loc.x, loc.y);
-				}
-			}
-		}
-	}
-
-	// Add missing left-border to apex tile
-	if (tileApex) {
-		setApexTileLeftBorderVisible(1);
-	} else {
-		setApexTileLeftBorderVisible(0);
-	}
-
-	// Print duration
-	{
-		char s[6];
-		uint8_t len = uint16String(s, Clock16 - startTime);
-		printStringAtXY("     ", 35, 22);
-		printStringAtXY(s, 40-len, 22);
 	}
 }
 
@@ -478,7 +425,7 @@ static void restartGame(void) {
 		layer = tileLayers[tile->level];
 		layer[tile->y * layerSize[tile->level].x + tile->x] = tile->value;
 	}	
-	drawTileBoard();
+	drawTileBoardTimed();
 }
 
 static void showNewGameConfirmation(void) {
