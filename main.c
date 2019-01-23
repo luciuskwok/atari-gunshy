@@ -30,6 +30,7 @@ typedef struct TileSpecifier {
 
 // Globals
 uint8_t isQuitting;
+uint8_t isInDialog;
 
 uint8_t tilesLevel0[14*8];
 uint8_t tilesLevel1[8*6];
@@ -41,8 +42,11 @@ uint8_t *tileLayers[5] = {
 	tilesLevel0, tilesLevel1, tilesLevel2, tilesLevel3, &tileApex
 };
 
-uint8_t tilesRemaining;
 TileSpecifier firstTileSelected;
+
+#define MaxMoves (144)
+TileSpecifier moves[MaxMoves];
+uint8_t movesIndex;
 
 // Constants
 #define RowBytes (40)
@@ -137,8 +141,14 @@ const point_t layerSize[5] = {
 // Center of tile board
 const point_t boardCenter = { 20, 11 };
 
-const uint8_t level0RowHalfWidths[] = { 6, 4, 5, 6, 6, 5, 4, 6 };
+const uint8_t level0RowStart[] = { 1, 3, 2, 0, 1, 2, 3, 1 };
+const uint8_t level0RowEnd[] = { 13, 11, 12, 14, 14, 12, 11, 13 };
 
+// In-line function macros
+
+#define clearLine(line) zeroOutMemory(SAVMSC_ptr + RowBytes * (line), RowBytes)
+#define StatusLine (21)
+#define CommandsLine (23)
 
 
 static void printCommand(const char *key, const char *title) {
@@ -148,8 +158,21 @@ static void printCommand(const char *key, const char *title) {
 	printString(title);
 }
 
-static void printMainCommandMenu(void) {
+static void printTilesLeft(void) {
+	char s[5];
+	uint8_t len;
+
+	len = uint16String(s, MaxMoves - movesIndex);
 	POKE(ROWCRS, 23);
+	POKE(COLCRS, 38-len);
+	printString("  ");
+	printString(s);
+}
+
+static void printMainCommandMenu(void) {
+	clearLine(CommandsLine);
+
+	POKE(ROWCRS, CommandsLine);
 	POKE(COLCRS, 2);
 
 	printCommand("U", "ndo");
@@ -160,14 +183,13 @@ static void printMainCommandMenu(void) {
 
 	printCommand("N", "ew");
 	POKE(COLCRS, PEEK(COLCRS)+2);
+
+	printTilesLeft();
 }
 
-static void clearStatusLine(void) {
-	zeroOutMemory(SAVMSC_ptr + RowBytes * 21, RowBytes);
-}
 
 static void printStatusLine(const char *s) {
-	clearStatusLine();
+	clearLine(StatusLine);
 	printStringAtXY(s, 2, 21);
 }
 
@@ -192,6 +214,8 @@ static void drawTile(uint8_t tile, uint8_t x, uint8_t y) {
 	}
 	if (screen[offset+(1*RowBytes-1)] == 0) {
 		screen[offset+(1*RowBytes-1)] = 1;
+	}
+	if (screen[offset+(2*RowBytes-1)] == 0) {
 		screen[offset+(2*RowBytes-1)] = 1;
 	}
 }
@@ -234,6 +258,8 @@ static void drawTileBoard(void) {
 	point_t loc;
 	uint8_t *layer;
 
+	zeroOutMemory(SAVMSC_ptr, RowBytes * 20);
+
 	for (level=0; level<5; ++level) {
 		layer = tileLayers[level];
 		layerWidth = layerSize[level].x;
@@ -258,117 +284,45 @@ static void drawTileBoard(void) {
 	}
 }
 
-static void initTileBoard(void) {
-	uint8_t x, y, hw, start, end, tile;
+static void startNewGame(void) {
+	uint8_t level, row, col;
+	uint8_t height, width;
+	uint8_t *layer;
+	uint8_t layerOffset;
+	uint8_t tileIndex = 1;
 
-	for (x=0; x<(14*8); ++x) {
-		tilesLevel0[x] = 0;
-	}
-	for (x=0; x<(8*6); ++x) {
-		tilesLevel1[x] = 0;
-	}
-	for (x=0; x<(6*4); ++x) {
-		tilesLevel2[x] = 0;
-	}
-	for (x=0; x<(4*2); ++x) {
-		tilesLevel3[x] = 0;
-	}
-	tileApex = 0;
+	// Place tiles in regular positions, skipping ends of rows.
+	for (level=0; level<5; ++level) {
+		layer = tileLayers[level];
+		height = layerSize[level].y;
+		width = layerSize[level].x;
+		for (row=0; row<height; ++row) {
+			for (col=0; col<width; ++col) {
+				layerOffset = row * width + col;
+				layer[layerOffset] = 0;
 
-	tile = 18;
+				if (level == 0) {
+					if (col < level0RowStart[row] || col >= level0RowEnd[row]) {
+						continue;
+					}
+				} else if (level < 4) {
+					if (col == 0 || col >= width-1) {
+						continue;
+					}
+				}
 
-	// Place level 0 tiles
-	for (y=0; y<8; ++y) {
-		hw = level0RowHalfWidths[y];
-		start = 7 - hw;
-		end = start + hw * 2;
-		for (x=start; x<end; ++x) {
-			tilesLevel0[x + y * 14] = tile;
-			++tile;
+				layer[layerOffset] = tileIndex++;
+			}
 		}
 	}
 
-	// Place level 1 tiles 
-	for (y=0; y<6; ++y) {
-		for (x=1; x<7; ++x) {
-			tilesLevel1[x + y * 8] = tile;
-			++tile;
-		}
-	}
+	printMainCommandMenu();
+	isInDialog = 0;
 
-	// Place level 2 tiles 
-	for (y=0; y<4; ++y) {
-		for (x=1; x<5; ++x) {
-			tilesLevel2[x + y * 6] = tile;
-			++tile;
-		}
-	}
+	movesIndex = 0;
+	printTilesLeft();
 
-	// Place level 3 tiles 
-	for (y=0; y<2; ++y) {
-		for (x=1; x<3; ++x) {
-			tilesLevel3[x + y * 4] = tile;
-			++tile;
-		}
-	}
-
-	// Place apex tile
-	tileApex = tile;
-	++tile;
-
-	// Place middle-left tile
-	tilesLevel0[middleLeftTileIndex] = tile;
-	++tile;
-
-	// Place middle-right tiles
-	tilesLevel0[middleRightTile0Index] = tile;
-	++tile;
-	tilesLevel0[middleRightTile1Index] = tile;
-	++tile;
-}
-
-static void keyDown(uint8_t keycode) {
-	uint8_t shift = keycode & 0x40;
-	uint8_t control = keycode & 0x80;
-	uint8_t note = 0xFF;
-	const uint8_t vol = 8;
-
-	switch (keycode & 0x3F) {
-		case KEY_DELETE:
-		case KEY_U:
-			// Handle "Undo Move" 
-			break;
-
-		case KEY_N:
-			// Handle "New"
-			break;
-
-		case KEY_R:
-			// Handle "Restart"
-			break;
-
-		default:
-			break;
-	}
-}
-
-static void handleKeyboard(void) {
-	static uint8_t previousKeycode = 0xFF;
-	static uint8_t previousKeydown = 0;
-
-	uint8_t isDown = (POKEY_READ.skstat & 0x04) == 0;
-	uint8_t keycode = POKEY_READ.kbcode; // was POKEY_READ.kbcode
-
-	if (keycode != previousKeycode) {
-		// keyUp(previousKeycode);
-		keyDown(keycode);
-	} else if (previousKeydown == 0 && isDown != 0) {
-		keyDown(keycode);
-	} else if (previousKeydown != 0 && isDown == 0) {
-		// keyUp(keycode);
-	}
-	previousKeydown = isDown;
-	previousKeycode = keycode;
+	drawTileBoard();
 }
 
 static uint8_t pointInRect(uint8_t ptx, uint8_t pty, uint8_t rx, uint8_t ry, uint8_t rw, uint8_t rh) {
@@ -412,12 +366,85 @@ static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 	}
 }
 
+static uint8_t isTileFree(TileSpecifier *tile) {
+	uint8_t level = tile->level;
+	uint8_t x = tile->x;
+	uint8_t y = tile->y;
+
+	// Level 4 is apex and always free
+	if (level == 4) {
+		return 1;
+	}
+
+	// Level 3 is free if apex tile is removed
+	if (level == 3) {
+		return (tileApex == 0) ? 1 : 0;
+	}
+
+	// Level 0 has some special tiles
+	if (level == 0) {
+		if (x == 0) {
+			return 1; // Left-middle endcap tile
+		}
+		if (x == 1) {
+			if (y == 3 || y == 4) {
+				// Tiles blocked by left-middle endcap tile.
+				return (tilesLevel0[middleLeftTileIndex] == 0) ? 1 : 0;
+			}
+		}
+		if (x == 12) {
+			if (y == 3 || y == 4) {
+				// Tiles blocked by right-middle endcap tiles.
+				return (tilesLevel0[middleRightTile0Index] == 0) ? 1 : 0;
+			}
+		}
+		if (x == 13) {
+			if (y == 3) {
+				// Second-to-last right-middle tile is free if the last right-middle tile is removed.
+				return (tilesLevel0[middleRightTile1Index] == 0) ? 1 : 0;
+			}
+			if (y == 4) {
+				return 1; // last right-middle tile
+			}
+		}
+	}
+
+	// Otherwise, tile is free if there is nothing to the left, right, or above.
+	{
+		const uint8_t *upperLayer = tileLayers[level+1];
+		const uint8_t *sameLayer = tileLayers[level];
+		point_t upperLayerSize;
+		uint8_t upperX, upperY;
+
+		upperLayerSize = layerSize[level+1];
+
+		upperX = x - (layerOffset[level].x - layerOffset[level+1].x) / 2;
+		upperY = y - (layerOffset[level].y - layerOffset[level+1].y);
+		
+		// First check tile above
+		if (upperX < upperLayerSize.x && upperY < upperLayerSize.y) {
+			if (upperLayer[upperX + upperY * upperLayerSize.x]) {
+				return 0;
+			}
+		}
+
+		// Second check left and right
+		if (sameLayer[y * layerSize[level].x + x - 1] == 0) {
+			return 1;
+		}
+		if (sameLayer[y * layerSize[level].x + x + 1] == 0) {
+			return 1;
+		}
+	}
+	return 0; // Otherwise, return false
+}
+
 static void printTileInfo(TileSpecifier *tile) {
 	char s[8];
 	uint8_t value = (tile->value - 1) % 36;
 	uint8_t suit;
 
-	clearStatusLine();
+	clearLine(StatusLine);
 	ROWCRS_value = 21;
 	COLCRS_value = 2;
 
@@ -448,43 +475,159 @@ static void selectTile(TileSpecifier *tile) {
 	firstTileSelected.x = tile->x;
 	firstTileSelected.y = tile->y;
 	firstTileSelected.level = tile->level;
-
-	// Print info on selected tile
-	printTileInfo(tile);
 }
 
-static void deselectTile(void) {
-	hideSelection();
-	firstTileSelected.value = 0;
-	printStatusLine("Select a tile");
+static void removeTile(TileSpecifier *tile) {
+	uint8_t *layer = tileLayers[tile->level];
+	layer[tile->y * layerSize[tile->level].x + tile->x] = 0;
+	if (tile->level == 4) {
+		setApexTileLeftBorderVisible(0);
+	}
+
+	// Add move for undo
+	if (movesIndex < MaxMoves) {
+		moves[movesIndex].value = tile->value;
+		moves[movesIndex].x = tile->x;
+		moves[movesIndex].y = tile->y;
+		moves[movesIndex].level = tile->level;
+		movesIndex += 1;
+	}
+}
+
+static void undoRemoveTile(void) {
+	TileSpecifier *tile;
+	uint8_t *layer;
+
+	if (movesIndex > 0) {
+		movesIndex -= 1;
+		tile = &moves[movesIndex];
+		layer = tileLayers[tile->level];
+		layer[tile->y * layerSize[tile->level].x + tile->x] = tile->value;
+	}
+}
+
+static void restartGame(void) {
+	// Undo all mvoes
+	TileSpecifier *tile;
+	uint8_t *layer;
+
+	while (movesIndex > 0) {
+		movesIndex -= 1;
+		tile = &moves[movesIndex];
+		layer = tileLayers[tile->level];
+		layer[tile->y * layerSize[tile->level].x + tile->x] = tile->value;
+	}	
+	drawTileBoard();
+}
+
+static void showNewGameConfirmation(void) {
+	isInDialog = 1;
+	zeroOutMemory(SAVMSC_ptr + RowBytes * StatusLine, 3 * RowBytes);
+	printStatusLine("Start a new game?");
+
+	POKE(ROWCRS, CommandsLine);
+	POKE(COLCRS, 2);
+
+	printCommand("Y", "es");
+	POKE(COLCRS, PEEK(COLCRS)+2);
+
+	printCommand("N", "o");
+}
+
+static void hideNewGameConfirmation(void) {
+	isInDialog = 0;
+	printStatusLine("");
+	printMainCommandMenu();
+}
+
+static void handleKeyboard(void) {
+	uint8_t key = PEEK(CH_) & 0x3F;
+	POKE(CH_, 0xFF); // Accept the key
+
+	if (isInDialog) {
+		if (key == KEY_Y || key == KEY_RETURN) {
+			startNewGame();
+			printStatusLine("Started a new game");
+		} else if (key == KEY_N || key == KEY_ESC) {
+			hideNewGameConfirmation();
+		}
+	} else {
+		if (key == KEY_DELETE || key == KEY_U) {
+			// Put last 2 tiles back.
+			if (movesIndex > 0) {
+				undoRemoveTile();
+				undoRemoveTile();
+				printStatusLine("Move undone");
+				printTilesLeft();
+				drawTileBoard();
+			}
+		} else if (key == KEY_N) {
+			showNewGameConfirmation();
+		} else if (key == KEY_R) {
+			restartGame();
+			printStatusLine("Game restarted");
+			printTilesLeft();
+		}
+	}
 }
 
 static void mouseDown(void) {
 	uint8_t x = mouseLocation.x;
 	uint8_t y = mouseLocation.y;
-	uint8_t wasSelected = 0;
+	uint8_t shouldDeselect = 1;
+	uint8_t shouldRedraw = 0;
 	TileSpecifier tileHit;
 
 	x = (x - PMLeftMargin) / 4;
 	y = (y - PMTopMargin) / 4;
 
+	if (isInDialog) {
+		hideNewGameConfirmation();
+	}
+
 	// Select the tile if no tile was selected or previously selected tile does not match. Otherwise, remove the matching pair of tiles.
 
 	getTileHit(&tileHit, x, y);
 	if (tileHit.value) {
-		if (tileHit.value != firstTileSelected.value && ((tileHit.value-1)%36 == (firstTileSelected.value-1)%36)) {
-			// Tiles match if they are one of 4 identical tiles, but don't match the exact same instance of the tile already selected.
-			// TODO: remove tile
+		uint8_t isFree = isTileFree(&tileHit);
+		if (isFree) {
+			if (firstTileSelected.value && tileHit.value != firstTileSelected.value && ((tileHit.value-1)%36 == (firstTileSelected.value-1)%36)) {
+				// Tiles match if they are one of 4 identical tiles, but don't match the exact same instance of the tile already selected.
+				removeTile(&firstTileSelected);
+				removeTile(&tileHit);
+				if (movesIndex < MaxMoves) {
+					printStatusLine("Match removed");
+				} else {
+					printStatusLine("Congratulations!");
+				}
+				printTilesLeft();
+				shouldDeselect = 1;
+				shouldRedraw = 1;
+			} else {
+				// Change the selection to the selected tile, if tile is free.
+				printTileInfo(&tileHit);
+				selectTile(&tileHit);
+				shouldDeselect = 0;
+			}
 		} else {
-			// Change the selection to the selected tile, if tile is free.
-			// TODO: check if tile is free
-			selectTile(&tileHit);
-			wasSelected = 1;
+			// Tile is blocked
+			shouldDeselect = 0;
+			if (firstTileSelected.value == 0) {
+				printStatusLine("Tile is blocked");
+			}
+		}
+	} else {
+		if (movesIndex < MaxMoves) {
+			printStatusLine("Select a tile");
 		}
 	}
 
-	if (firstTileSelected.value && wasSelected == 0) {
-		deselectTile();
+	if (firstTileSelected.value && shouldDeselect) {
+		hideSelection();
+		firstTileSelected.value = 0;
+	}
+	if (shouldRedraw) {
+		drawTileBoard();
 	}
 }
 
@@ -540,11 +683,9 @@ int main (void) {
 	}
 
 	printStatusLine("Move pointer with joystick or mouse");
-	printMainCommandMenu();
 
 	// New game
-	initTileBoard();
-	drawTileBoard();
+	startNewGame();
 
 	pointerHasMoved = 0; // Reset this because initially it will be set when pointer is drawn for the first time.
 
