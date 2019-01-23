@@ -150,10 +150,6 @@
 	; Constants
 	anticOptions = $2E 	; normal playfield, enable players & missiles, enable DMA
 	enableDLI    = $C0  ; enable VBI + DLI
-
-	lda #0 			; erase text cursor
-	ldy #2 
-	sta (SAVMSC),Y
 	
 	lda #0			; Turn off screen during init
 	sta SDMCTL

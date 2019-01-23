@@ -278,6 +278,7 @@ static uint8_t isTileFree(TileSpecifier *tile) {
 	uint8_t level = tile->level;
 	uint8_t x = tile->x;
 	uint8_t y = tile->y;
+	uint8_t left, right;
 
 	// Level 4 is apex and always free
 	if (level == 4) {
@@ -297,19 +298,25 @@ static uint8_t isTileFree(TileSpecifier *tile) {
 		if (x == 1) {
 			if (y == 3 || y == 4) {
 				// Tiles blocked by left-middle endcap tile.
-				return (tilesLevel0[middleLeftTileIndex] == 0) ? 1 : 0;
+				left = tilesLevel0[middleLeftTileIndex];
+				right = tilesLevel0[y * layerSize[level].x + x + 1];
+				return (left && right) ? 0 : 1;
 			}
 		}
 		if (x == 12) {
 			if (y == 3 || y == 4) {
 				// Tiles blocked by right-middle endcap tiles.
-				return (tilesLevel0[middleRightTile0Index] == 0) ? 1 : 0;
+				left = tilesLevel0[y * layerSize[level].x + x - 1];
+				right = tilesLevel0[middleRightTile0Index];
+				return (left && right) ? 0 : 1;
 			}
 		}
 		if (x == 13) {
 			if (y == 3) {
-				// Second-to-last right-middle tile is free if the last right-middle tile is removed.
-				return (tilesLevel0[middleRightTile1Index] == 0) ? 1 : 0;
+				// Second-to-last right-middle tile is free if the last right-middle tile is removed, or if the 2 tiles to its left are both removed.
+				left = tilesLevel0[3 * layerSize[level].x + 12] || tilesLevel0[4 * layerSize[level].x + 12];
+				right = tilesLevel0[middleRightTile1Index];
+				return  (left && right) ? 0 : 1;
 			}
 			if (y == 4) {
 				return 1; // last right-middle tile
