@@ -140,3 +140,48 @@
 	rts
 .endproc 
 
+
+; void printHex(uint16_t value);
+.export _printHex 
+.proc _printHex
+	.importzp ptr1 
+	.import _setSavadrToCursor
+
+	sta ptr1+1 ; store in big-endian format
+	stx ptr1
+
+	jsr _setSavadrToCursor ; uses sreg
+
+	ldy #0 
+	loop:
+		lda #0  	; A = top 4 bits of ptr1
+		asl ptr1+1
+		rol ptr1 
+		rol a 
+		asl ptr1+1
+		rol ptr1 
+		rol a 
+		asl ptr1+1
+		rol ptr1 
+		rol a 
+		asl ptr1+1
+		rol ptr1 
+		rol a 
+
+		cmp #10
+		bcs hex_char
+		dec_char:
+			clc
+			adc #'0'-$20 ; Convert constant to ATASCII
+			sta (SAVADR),Y 
+			jmp next_loop
+		hex_char:
+			clc 
+			adc #'A'-$20-10 ; Convert constant to ATASCII
+			sta (SAVADR),Y 
+		next_loop:
+			iny 
+			cpy #4
+			bne loop 
+	rts
+.endproc 

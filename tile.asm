@@ -49,13 +49,33 @@ tileCharMap:
 	.byte $F8, $F9, $FA, $FB ; Moon
 	.byte $FC, $FD, $7E, $7F ; Flower
 
-layerOffset:
-	.byte 14, 9
-	.byte 8, 8
-	.byte 6, 7
-	.byte 4, 6
-	.byte 1, 6
+blankTile:
+	.byte $00,$00,$00,$00,$15,$55,$5C,$00,$15,$55,$5F,$00,$15,$55,$5F,$00
+	.byte $15,$55,$5F,$00,$15,$55,$5F,$00,$15,$55,$5F,$00,$15,$55,$5F,$00
+	.byte $15,$55,$5F,$00,$15,$55,$5F,$00,$3F,$FF,$F3,$00,$0F,$FF,$FC,$00
+	.byte $00,$00,$00,$00
+blankTileMask:
+	.byte $C0,$00,$03,$FF,$00,$00,$00,$FF,$00,$00,$00,$3F,$00,$00,$00,$3F
+	.byte $00,$00,$00,$3F,$00,$00,$00,$3F,$00,$00,$00,$3F,$00,$00,$00,$3F
+	.byte $00,$00,$00,$3F,$00,$00,$00,$3F,$00,$00,$00,$3F,$C0,$00,$00,$3F
+	.byte $F0,$00,$00,$3F
+	blankTileHeight = 13 	; lines
+	blankTileLength = blankTileHeight*4 
 
+
+layerPixelOffset:
+	.byte 70, 90
+	.byte 42, 74
+	.byte 34, 58
+	.byte 26, 42
+	.byte 13, 36
+
+boardCenterX: .byte 74
+boardCenterY: .byte 90
+
+.bss 
+imageTemp: .res 5
+maskTemp:  .res 5
 .code 
 
 
@@ -63,19 +83,20 @@ layerOffset:
 .export _drawTileBoard
 .proc _drawTileBoard
 	.importzp tmp1, tmp2, tmp3, tmp4
-	.importzp ptr1
+	.importzp ptr2
 	.import _zeroOutMemory
 	.import pushax, pusha
 	.import _tileLayers
 	.import _tileApex
 	.import _layerSize
+	.import _fontPage
 
 	; Clear the screen
-	lda SAVMSC 
-	ldx SAVMSC+1
+	lda #0 
+	ldx _fontPage
 	jsr pushax 
-	lda #<(RowBytes*20)
-	ldx #>(RowBytes*20)
+	lda #0
+	ldx #7*4 ; 7 font blocks
 	jsr _zeroOutMemory
 
 	level = tmp1 
@@ -84,7 +105,7 @@ layerOffset:
 
 	row = tmp2 
 	col = tmp3
-	layer = ptr1 
+	layer = ptr2 
 	layerIndex = tmp4 
 
 
@@ -119,8 +140,6 @@ layerOffset:
 				lda col 
 				jsr _tileLocation
 
-				dec COLCRS ; adjust for drawing code
-
 				pla ; tile value
 				jsr _drawTile
 			next_col:
@@ -147,13 +166,6 @@ layerOffset:
 		cmp #10
 		bne loop_level 
 
-	apex_tile:
-		lda _tileApex 
-		beq skip_show_border
-			lda #PMLeftMargin+75
-		skip_show_border:
-		sta HPOSP3
-
 	rts
 .endproc 
 
@@ -161,34 +173,38 @@ layerOffset:
 .export _tileLocation
 .proc _tileLocation
 	.import popa 
-	.import _boardCenter
+	.import mulax10 ; uses ptr1
 
-	; col = col * 2 + boardCenter.x - layerOffset[level].x
+	; col = col * 10 + boardCenter.x
 	sta OLDCOL 
-	asl a 
+	ldx #0
+	jsr mulax10
 	clc 
-	adc _boardCenter 	; boardCenter.x
+	adc boardCenterX
 	sta COLCRS 
 
-	; row = row * 2 + boardCenter.y - layerOffset[level].y
+	; row = row * 20 + boardCenter.y
 	jsr popa 
 	sta OLDROW
 	asl a 
-	adc _boardCenter+1 	; boardCenter.y
+	ldx #0
+	jsr mulax10
+	clc 
+	adc boardCenterY
 	sta ROWCRS
 
-	; offset = layerOffset[level]
+	; offset = layerPixelOffset[level]
 	jsr popa 			; level
 	asl a 
 	tax 
 	lda COLCRS
 	sec
-	sbc layerOffset,X 	; offset.x
+	sbc layerPixelOffset,X 	; col -= offset.x
 	sta COLCRS 
 
 	lda ROWCRS
 	sec
-	sbc layerOffset+1,X	; offset.y
+	sbc layerPixelOffset+1,X	; row -= offset.y
 	sta ROWCRS 
 
 	; Special case for layer 0 far left and far right tiles
@@ -197,7 +213,10 @@ layerOffset:
 		lda OLDCOL
 		cmp #0 
 		bne skip_left_endcap
-			inc ROWCRS
+			lda ROWCRS
+			clc 
+			adc #10
+			sta ROWCRS
 			jmp skip_layer0
 		skip_left_endcap:
 		cmp #13
@@ -205,14 +224,22 @@ layerOffset:
 			lda OLDROW
 			cmp #3
 			bne skip_second_to_last
-				inc ROWCRS
+				lda ROWCRS
+				clc 
+				adc #10
+				sta ROWCRS
 				jmp skip_right_endcap
 			skip_second_to_last:
 			cmp #4
 			bne skip_last
-				dec ROWCRS
-				inc COLCRS
-				inc COLCRS
+				lda ROWCRS
+				sec 
+				sbc #10
+				sta ROWCRS
+				lda COLCRS
+				clc 
+				adc #10
+				sta COLCRS
 			skip_last:
 		skip_right_endcap:
 	skip_layer0:
@@ -226,15 +253,82 @@ layerOffset:
 .export _drawTile
 .proc _drawTile
 	; on entry: ROWCRS=y, COLCRS=x
-	.import popa
 	.import _setSavadrToCursor
 
-    ;sta ROWCRS         ; y
-    ;jsr popa
-    ;sec 
-    ;sbc #1
-    ;sta COLCRS         ; x
-    ;jsr popa 
+	lda COLCRS 	; calculate SHFAMT: number of bits to shift right
+	and #3 
+	asl a 
+	sta SHFAMT 
+
+	; Draw blank tile
+	lda #0
+	sta ROWINC
+	loop_line:
+		jsr _getCursorAddr 
+
+		ldx ROWINC 			; Get mask
+		lda blankTileMask,X
+		sta maskTemp 
+		lda blankTileMask+1,X
+		sta maskTemp+1
+		lda blankTileMask+2,X
+		sta maskTemp+2
+		lda blankTileMask+3,X
+		sta maskTemp+3
+		lda #$FF
+		sta maskTemp+4 
+
+		lda blankTile,X		; Get image
+		sta imageTemp 
+		lda blankTile+1,X
+		sta imageTemp+1
+		lda blankTile+2,X
+		sta imageTemp+2
+		lda blankTile+3,X
+		sta imageTemp+3
+		lda #0
+		sta imageTemp+4 
+
+		jsr doBitShift
+
+		ldx #0 				; Apply mask and image
+		loop_col:
+			txa 
+			asl a 
+			asl a 
+			asl a 
+			tay 
+
+			lda (SAVADR),Y
+			and maskTemp,X 
+			ora imageTemp,X 
+			sta (SAVADR),Y
+
+			iny 
+			lda (SAVADR),Y
+			and maskTemp,X 
+			ora imageTemp,X 
+			sta (SAVADR),Y
+
+			inx 
+			cpx #5
+			bne loop_col
+
+		next_line:
+			lda ROWCRS
+			clc 
+			adc #2
+			sta ROWCRS
+
+			lda ROWINC
+			clc 
+			adc #4
+			sta ROWINC
+			cmp #blankTileLength
+			bcc loop_line
+
+
+    rts ; remove after testing
 
     pha 
 	jsr _setSavadrToCursor
@@ -286,5 +380,82 @@ layerOffset:
 		sta (SAVADR),Y 
 	skip_left2:
 
+	rts 
+.endproc 
+
+.proc doBitShift
+	; on entry: shiftArea has bits to shift, SHFAMT the number of times to shift right
+	ldy SHFAMT 
+	jmp next_shift
+	loop_shift:
+		sec 
+		ror maskTemp 
+		ror maskTemp+1
+		ror maskTemp+2
+		ror maskTemp+3
+		ror maskTemp+4
+		lsr imageTemp 
+		ror imageTemp+1
+		ror imageTemp+2
+		ror imageTemp+3
+		ror imageTemp+4
+		dey 
+	next_shift:
+		bne loop_shift 
+	rts
+.endproc 
+
+
+.export _getCursorAddr
+.proc _getCursorAddr
+	; result is in AX and SAVADR
+	.import _fontPage
+
+	.rodata
+	rowLookup:
+		.word 0, 40*8, 80*8
+		.word 1024*1, 1024*1 + 40*8, 1024*1 + 80*8
+		.word 1024*2, 1024*2 + 40*8, 1024*2 + 80*8
+		.word 1024*3, 1024*3 + 40*8, 1024*3 + 80*8
+		.word 1024*4, 1024*4 + 40*8, 1024*4 + 80*8
+		.word 1024*5, 1024*5 + 40*8, 1024*5 + 80*8
+		.word 1024*6, 1024*6 + 40*8, 1024*6 + 80*8
+
+	.code 
+
+	lda ROWCRS
+	lsr a 		; X = ROWCRS / 8 * 2 
+	lsr a 
+	and #$FE 
+	tax 
+
+	lda rowLookup,X 	; ptr1 = fontPage + rowLookup[X]
+	sta SAVADR
+	lda rowLookup+1,X
+	clc 
+	adc _fontPage
+	sta SAVADR+1 
+
+	lda ROWCRS 			; ptr1 += ROWCRS % 8
+	and #7 
+	clc 
+	adc SAVADR 
+	sta SAVADR  		; addition should not cross page boundary
+
+	lda COLCRS 			; ptr1 += COLCRS / 4 * 8
+	and #$FC			; There are 4 pixels per byte, so divide COLCRS by 4, 
+	asl a 				; then multiply by 8 because there are 8 bytes per character.
+	bcc skip_msb0
+		inc SAVADR+1
+	skip_msb0:
+	clc 				; This is the same as masking off the lower 3 bits and 
+	adc SAVADR			; multiplying by 2.
+	sta SAVADR 
+	bcc skip_msb1
+		inc SAVADR+1
+	skip_msb1:
+
+	lda SAVADR 
+	ldx SAVADR+1
 	rts 
 .endproc 

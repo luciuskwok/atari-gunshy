@@ -94,9 +94,6 @@ const point_t layerSize[5] = {
 	{  1, 1 }
 };
 
-// Center of tile board
-const point_t boardCenter = { 20, 11 };
-
 const uint8_t level0RowStart[] = { 1, 3, 2, 0, 1, 2, 3, 1 };
 const uint8_t level0RowEnd[] = { 13, 11, 12, 14, 14, 12, 11, 13 };
 
@@ -162,12 +159,18 @@ static void printStatusLine(const char *s) {
 	printStringAtXY(s, 2, 21);
 }
 
-static void setApexTileLeftBorderVisible(uint8_t visible) {
-	if (visible) {
-		POKE(HPOSP3, PMLeftMargin+75);
-	} else {
-		POKE(HPOSP3, 0);
-	}
+static void debugLocation(uint8_t x, uint16_t y) {
+	char s[6];
+
+	clearLine(StatusLine);
+	POKE(ROWCRS, 21);
+	POKE(COLCRS, 2);
+	printString("Location: ");
+	uint16String(s, x);
+	printString(s);
+	printString(", ");
+	uint16String(s, y);
+	printString(s);
 }
 
 static void getShuffledTiles(uint8_t *outArray) {
@@ -258,7 +261,7 @@ static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 				tile = layer[col + row * layerWidth];
 				if (tile) {
 					loc = tileLocation(level, row, col);
-					if (pointInRect(x, y, loc.x, loc.y, 2, 3)) {
+					if (pointInRect(x, y, loc.x, loc.y, 12, 24)) {
 						outTile->value = tile;
 						outTile->x = col;
 						outTile->y = row;
@@ -375,6 +378,18 @@ static void printTileInfo(TileSpecifier *tile) {
 	} else {
 		printString(tileNames[value-27]);
 	}
+
+	// Debugging
+	printString(" Loc:");
+	uint16String(s, tile->level);
+	printString(s);
+	printString(",");
+	uint16String(s, tile->x);
+	printString(s);
+	printString(",");
+	uint16String(s, tile->y);
+	printString(s);
+
 }
 
 static void selectTile(TileSpecifier *tile) {
@@ -392,9 +407,6 @@ static void selectTile(TileSpecifier *tile) {
 static void removeTile(TileSpecifier *tile) {
 	uint8_t *layer = tileLayers[tile->level];
 	layer[tile->y * layerSize[tile->level].x + tile->x] = 0;
-	if (tile->level == 4) {
-		setApexTileLeftBorderVisible(0);
-	}
 
 	// Add move for undo
 	if (movesIndex < MaxMoves) {
@@ -484,14 +496,11 @@ static void handleKeyboard(void) {
 }
 
 static void mouseDown(void) {
-	uint8_t x = mouseLocation.x;
-	uint8_t y = mouseLocation.y;
+	uint8_t x = mouseLocation.x - PMLeftMargin;
+	uint8_t y = (mouseLocation.y - PMTopMargin) * 2;
 	uint8_t shouldDeselect = 1;
 	uint8_t shouldRedraw = 0;
 	TileSpecifier tileHit;
-
-	x = (x - PMLeftMargin) / 4;
-	y = (y - PMTopMargin) / 4;
 
 	if (isInDialog) {
 		hideNewGameConfirmation();
@@ -524,13 +533,16 @@ static void mouseDown(void) {
 		} else {
 			// Tile is blocked
 			shouldDeselect = 0;
-			if (firstTileSelected.value == 0) {
-				printStatusLine("Tile is blocked");
-			}
+			printTileInfo(&tileHit);
+			selectTile(&tileHit);
+			// if (firstTileSelected.value == 0) {
+			// 	printStatusLine("Tile is blocked");
+			// }
 		}
 	} else {
 		if (movesIndex < MaxMoves) {
-			printStatusLine("Select a tile");
+			// printStatusLine("Select a tile");
+			debugLocation(x, y);
 		}
 	}
 

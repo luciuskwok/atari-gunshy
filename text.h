@@ -8,5 +8,5 @@ void moveToNextLine(void);
 char toAtascii(char c);
 
 uint8_t uint16String(char *string, uint16_t value);
-
+void printHex(uint16_t value);
 

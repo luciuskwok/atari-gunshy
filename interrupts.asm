@@ -94,7 +94,7 @@
 		clc 
 		adc #4 
 		sta fontTmp
-		;sta WSYNC
+		;sta WSYNC		; seems that changing CHBASE doesn't affect current scanline
 		sta CHBASE
 		jmp return 
 

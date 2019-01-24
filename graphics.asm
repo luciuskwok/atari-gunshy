@@ -19,8 +19,8 @@
 
 	colorTable:
 		.byte $58	; P0: mouse pointer
-		.byte $6A	; P1: selected tile effect 
-		.byte $0E	; P2 sprite
+		.byte $6A	; P1: selection marquee 
+		.byte $6A	; P2: selection marquee
 		.byte $02	; P3: apex tile left border
 		.byte $0E	; COLOR0: white
 		.byte $36	; COLOR1: red
@@ -55,17 +55,14 @@
 	.import popa
 	.import selectionLocX, selectionLocY, selectionHasMoved
 
-	asl a  			; Y = row * 4 + PMTopMargin
-	asl a 
+	lsr a 
 	clc 
-	adc #PMTopMargin
+	adc #PMTopMargin; Y = row / 2 + PMTopMargin
 	sta selectionLocY
 
-	jsr popa  		; X = row * 4 + PMLeftMargin
-	asl a 
-	asl a 
+	jsr popa  		
 	clc 
-	adc #PMLeftMargin-1
+	adc #PMLeftMargin; X = col + PMLeftMargin
 	sta selectionLocX
 
 	lda #1 
@@ -81,7 +78,7 @@
 	lda #0
 	sta selectionLocX
 	sta HPOSP1
-	sta HPOSM1
+	sta HPOSP2
 	rts
 .endproc 	
 
@@ -178,6 +175,7 @@
 	sec 
 	sbc #32 
 	sta _fontPage 	; 32 pages = 8 kB below RAMTOP
+	sta CHBAS 
 
 	sec 
 	sbc #4 			; 4 pages = 1 kB below fontPage
@@ -192,12 +190,11 @@
 	jsr _zeroOutMemory 	
 
 	jsr initDisplayList
+	jsr initScreenMemory
 	jsr initSprite
 	jsr initVBI
 
 	; Restore screen
-	lda #$20 		; switch to custom font
-	sta CHBAS 
 	lda #enableDLI 	; enable DLI+VBI
 	sta NMIEN
 	lda #anticOptions ; turn screen back on
@@ -287,6 +284,34 @@
 
 	rts
 .endproc
+
+.proc initScreenMemory
+	; Set constant screen memory pattern 
+
+	lda SAVMSC 
+	sta SAVADR
+	lda SAVMSC+1
+	sta SAVADR+1
+
+	ldx #7 
+	loop_block:
+		ldy #120
+		loop_char:
+			dey 
+			tya 
+			sta (SAVADR),Y
+			bne loop_char 
+		clc 
+		lda SAVADR 
+		adc #120
+		sta SAVADR 
+		bcc skip_msb 
+			inc SAVADR+1
+		skip_msb:
+		dex 
+		bne loop_block
+	rts 
+.endproc 
 
 .proc initSprite
 	.import zeroOutAXY

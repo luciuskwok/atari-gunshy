@@ -40,20 +40,23 @@
 	selectionLocY: .byte 0
 	prevSelectionLocY: .byte 0
 	selectionHasMoved: .byte 0
+	selectionPattern: .byte $F0
 
-	selectionSprite:
-		.byte $FF, $80, $80, $80, $80, $80, $80, $80, $FF
-		selectionSprite_length = 9
-	selectionPattern:
-		.byte $F0, $E1, $C3, $87, $0F, $1E, $3C, $78, $F0
-		selectionPattern_length = 9
+.rodata 
+	selectionSprite1:
+		.byte $FF, $80, $80, $80, $80, $80, $80, $80, $80, $80, $FF
+	selectionSprite2:
+		.byte $E0, $20, $20, $20, $20, $20, $20, $20, $20, $20, $E0
+		selectionSprite_length = 11
+
 
 .segment "EXTZP": zeropage
 	mouseSprite: .word 0
 	mouseTemp: .byte 0
 
-	selectionSpriteP: .word 0
-	selectionSpriteM: .word 0
+	selectionSpriteP1: .word 0
+	selectionSpriteP2: .word 0
+	selectionTemp: .byte 0
 
 .code 
 
@@ -73,10 +76,17 @@
 		sta HPOSP1
 		clc 
 		adc #8
-		sta HPOSM1
+		sta HPOSP2
 
 		jsr drawSelection
-		jsr shiftSelectionPattern
+
+		lda selectionPattern 	; shift selection pattern to make marching ants
+		asl a 
+		bcc @no_bit
+			ora #1
+		@no_bit:
+		sta selectionPattern
+
 		lda #0
 		sta selectionHasMoved
 	return:
@@ -93,13 +103,15 @@
 	ldx #selectionSprite_length
 	lda #0
 	loop_erase:
-		sta (selectionSpriteP),Y 
-		lda (selectionSpriteM),Y 
-		and #%11110011
-		sta (selectionSpriteM),Y
+		sta (selectionSpriteP1),Y 
+		sta (selectionSpriteP2),Y
 		iny 
 		dex 
 		bne loop_erase
+
+	; Load the selection mask
+	lda selectionPattern 
+	sta selectionTemp
 
 	; Draw the sprite at the new Y position
 	pla 
@@ -107,13 +119,21 @@
 	tay
 	ldx #0
 	loop_draw:
-		lda selectionSprite,X  	
-		and selectionPattern,X
-		sta (selectionSpriteP),Y 
-		lda (selectionSpriteM),Y 
-		ora #%00001000
-		and selectionPattern,X
-		sta (selectionSpriteM),Y
+		lda selectionSprite1,X  	
+		and selectionTemp
+		sta (selectionSpriteP1),Y 
+
+		lda selectionSprite2,X 
+		and selectionTemp 
+		sta (selectionSpriteP2),Y 
+
+		lda selectionTemp 
+		asl a 
+		bcc skip_bit 
+			ora #1
+		skip_bit:
+		sta selectionTemp
+
 		iny 
 		inx
 		cpx #selectionSprite_length 
@@ -121,21 +141,6 @@
 	return:	
 		rts 
 .endproc
-
-.proc shiftSelectionPattern 
-	ldy #0
-	loop:
-		lda selectionPattern,Y 
-		asl a 
-		bcc @no_bit
-			ora #1
-		@no_bit:
-		sta selectionPattern,Y
-		iny 
-		cpy #selectionPattern_length
-		bne loop 
-	rts
-.endproc 
 
 .export mouseDeferredVBI
 .proc mouseDeferredVBI
@@ -347,15 +352,15 @@
 	sta mouseSprite
 	stx mouseSprite+1
 
-	lda #2 				; Use P1 (sprite 2) for part of selection.
+	lda #2 				; Use P1 (sprite 2) for left part of selection.
 	jsr _getSpritePtr
-	sta selectionSpriteP
-	stx selectionSpriteP+1
+	sta selectionSpriteP1
+	stx selectionSpriteP1+1
 
-	lda #0				; Use missiles (sprite 0) for part of selection.
+	lda #3				; Use P2 (sprite 3) for right part of selection.
 	jsr _getSpritePtr
-	sta selectionSpriteM
-	stx selectionSpriteM+1
+	sta selectionSpriteP2
+	stx selectionSpriteP2+1
 
 	lda #<_timer1Handler ; Install timer 1 handler
 	sta VTIMR1 
