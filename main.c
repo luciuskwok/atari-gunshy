@@ -594,7 +594,7 @@ int main (void) {
 		}
 	}
 
-	printStatusLine("Move pointer with joystick or mouse");
+	printStatusLine("Use joystick (pt.1) or mouse (pt.2)");
 
 	// New game
 	startNewGame();
