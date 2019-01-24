@@ -179,19 +179,19 @@ maskTemp:  .res 5
 		cmp #13
 		bne skip_right_endcap
 			lda OLDROW
-			cmp #3
-			bne skip_second_to_last
-				lda ROWCRS
-				clc 
-				adc #10
-				sta ROWCRS
-				jmp skip_right_endcap
-			skip_second_to_last:
 			cmp #4
-			bne skip_last
+			bne skip_second_to_last
 				lda ROWCRS
 				sec 
 				sbc #10
+				sta ROWCRS
+				jmp skip_right_endcap
+			skip_second_to_last:
+			cmp #5
+			bne skip_last
+				lda ROWCRS
+				sec 
+				sbc #30
 				sta ROWCRS
 				lda COLCRS
 				clc 

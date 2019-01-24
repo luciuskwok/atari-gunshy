@@ -55,25 +55,23 @@ uint8_t movesIndex;
 // Constants
 #define RowBytes (40)
 #define middleLeftTileIndex (3*14)
-#define middleRightTile0Index (3*14+13)
-#define middleRightTile1Index (4*14+13)
+#define middleRightTile0Index (4*14+13)
+#define middleRightTile1Index (5*14+13)
 #define PMLeftMargin (48)
 #define PMTopMargin (16)
 
 const char * tileSuits[3] = { "Dots", "Wan", "Bamboo" };
 
-const char sEastWind[]  = "East Wind";
-const char sSouthWind[] = "South Wind";
-const char sWestWind[]  = "West Wind";
-const char sNorthWind[] = "North Wind";
-const char sRedDragon[] = "Red Dragon";
-const char sGreenDragon[] = "Green Dragon";
-const char sWhiteDragon[] = "White Dragon";
-const char sMoon[] = "Moon";
-const char sFlower[] = "Flower";
 const char * tileNames[9] = {
-	sEastWind, sSouthWind, sWestWind, sNorthWind, 
-	sRedDragon, sGreenDragon, sWhiteDragon, sMoon, sFlower
+	"East Wind", 
+	"South Wind", 
+	"West Wind",
+	"North Wind", 
+	"Red Dragon", 
+	"Green Dragon", 
+	"White Dragon", 
+	"Moon", 
+	"Flower"
 };
 
 // Position offsets from center for each tile layer
@@ -95,7 +93,7 @@ const point_t layerSize[5] = {
 };
 
 const uint8_t level0RowStart[] = { 1, 3, 2, 0, 1, 2, 3, 1 };
-const uint8_t level0RowEnd[] = { 13, 11, 12, 14, 14, 12, 11, 13 };
+const uint8_t level0RowEnd[] = { 13, 11, 12, 13, 14, 12, 11, 13 };
 
 // In-line function macros
 
@@ -224,6 +222,9 @@ static void startNewGame(void) {
 		}
 	}
 
+	// Add special right-middle endcap
+	tilesLevel0[middleRightTile1Index] = sortedTiles[tileIndex++];
+
 	printMainCommandMenu();
 	isInDialog = 0;
 
@@ -261,7 +262,7 @@ static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 				tile = layer[col + row * layerWidth];
 				if (tile) {
 					loc = tileLocation(level, row, col);
-					if (pointInRect(x, y, loc.x, loc.y, 12, 24)) {
+					if (pointInRect(x, y, loc.x+2, loc.y, 13, 26)) {
 						outTile->value = tile;
 						outTile->x = col;
 						outTile->y = row;
@@ -312,13 +313,13 @@ static uint8_t isTileFree(TileSpecifier *tile) {
 			}
 		}
 		if (x == 13) {
-			if (y == 3) {
+			if (y == 4) {
 				// Second-to-last right-middle tile is free if the last right-middle tile is removed, or if the 2 tiles to its left are both removed.
 				left = tilesLevel0[3 * layerSize[level].x + 12] || tilesLevel0[4 * layerSize[level].x + 12];
 				right = tilesLevel0[middleRightTile1Index];
 				return  (left && right) ? 0 : 1;
 			}
-			if (y == 4) {
+			if (y == 5) {
 				return 1; // last right-middle tile
 			}
 		}
@@ -396,7 +397,7 @@ static void selectTile(TileSpecifier *tile) {
 	point_t loc;
 
 	loc = tileLocation(tile->level, tile->y, tile->x);
-	setSelectionLocation(loc.x, loc.y);
+	setSelectionLocation(loc.x + 2, loc.y);
 
 	firstTileSelected.value = tile->value;
 	firstTileSelected.x = tile->x;
@@ -533,11 +534,11 @@ static void mouseDown(void) {
 		} else {
 			// Tile is blocked
 			shouldDeselect = 0;
-			printTileInfo(&tileHit);
-			selectTile(&tileHit);
-			// if (firstTileSelected.value == 0) {
-			// 	printStatusLine("Tile is blocked");
-			// }
+			// printTileInfo(&tileHit);
+			// selectTile(&tileHit);
+			if (firstTileSelected.value == 0) {
+				printStatusLine("Tile is blocked");
+			}
 		}
 	} else {
 		if (movesIndex < MaxMoves) {
