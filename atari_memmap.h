@@ -29,13 +29,6 @@
 
 #define Clock16 (PEEK(20) + 256 * PEEK(19))
 
-// Accessors for C
-#define ATRACT_value (*(char*)ATRACT)
-#define SAVMSC_ptr (*(char**)SAVMSC)
-#define SAVADR_ptr (*(char**)SAVADR)
-#define ROWCRS_value (*(char*)ROWCRS)
-#define COLCRS_value (*(unsigned int*)COLCRS)
-
 
 // Page 2 - OS
 #define VDSLST (0x0200) /* Display list interrupt vector */
@@ -105,5 +98,18 @@
 #define POKEW(addr,val)  (*(unsigned*) (addr) = (val))
 #define PEEK(addr)  (*(unsigned char*) (addr))
 #define PEEKW(addr)  (*(unsigned*) (addr))
+
+// Accessors for C
+#define ATRACT_value (*(char*)ATRACT)
+#define SAVMSC_ptr (*(char**)SAVMSC)
+#define SAVADR_ptr (*(char**)SAVADR)
+#define ROWCRS_value (*(char*)ROWCRS)
+#define COLCRS_value (*(unsigned int*)COLCRS)
+#define BITMSK_value (*(char*)BITMSK)
+#define CH_value (*(char*)CH_)
+
+#define STRIG0_read (*(const char*)STRIG0)
+#define STRIG1_read (*(const char*)STRIG1)
+
 
 #endif

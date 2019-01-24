@@ -11,7 +11,7 @@
 	sta length			; ptr1 = parmeter 'length'
 	stx length+1
 
-	ptr = sreg
+	ptr = sreg			; not using popsreg because it saves A reg for no reason
 	jsr popax 
 	sta ptr
 	stx ptr+1

@@ -48,13 +48,9 @@ maskTemp:  .res 5
 	.import _layerSize
 	.import _fontPage
 
-	; Clear the screen
-	lda #0 
-	ldx _fontPage
-	jsr pushax 
-	lda #0
-	ldx #7*4 ; 7 font blocks
-	jsr _zeroOutMemory
+	; Fill the screen with $FF
+	lda #$FF 
+	jsr fillFontArea
 
 	level = tmp1 
 	lda #0
@@ -124,6 +120,36 @@ maskTemp:  .res 5
 		bne loop_level 
 
 	rts
+.endproc 
+
+.proc fillFontArea 
+	; Fills entire 7 kB font area with A
+	.importzp ptr1 
+	.importzp tmp1 
+	.import _fontPage
+
+	tay 
+
+	lda _fontPage
+	sta ptr1+1
+	lda #0
+	sta ptr1 
+
+	pageIndex = tmp1
+		lda #7*4
+		sta pageIndex 
+
+	tya 
+	loop_page:
+		ldy #0
+		loop_byte:
+			sta (ptr1),Y 
+			iny 
+			bne loop_byte 
+		inc ptr1+1 
+		dec pageIndex
+		bne loop_page
+	rts 
 .endproc 
 
 ; point_t tileLocation(uint8_t level, uint8_t row, uint8_t col);

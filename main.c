@@ -117,9 +117,9 @@ static void drawTileBoardTimed(void) {
 }
 
 static void printCommand(const char *key, const char *title) {
-	POKE(BITMSK, 0x80);
+	BITMSK_value = 0x80;
 	printString(key);
-	POKE(BITMSK, 0);
+	BITMSK_value = 0;
 	printString(title);
 }
 
@@ -128,8 +128,8 @@ static void printTilesLeft(void) {
 	uint8_t len;
 
 	len = uint16String(s, MaxMoves - movesIndex);
-	POKE(ROWCRS, 23);
-	POKE(COLCRS, 38-len);
+	ROWCRS_value = 23;
+	COLCRS_value = 38-len;
 	printString("  ");
 	printString(s);
 }
@@ -137,17 +137,17 @@ static void printTilesLeft(void) {
 static void printMainCommandMenu(void) {
 	clearLine(CommandsLine);
 
-	POKE(ROWCRS, CommandsLine);
-	POKE(COLCRS, 2);
+	ROWCRS_value = CommandsLine;
+	COLCRS_value = 2;
 
 	printCommand("U", "ndo");
-	POKE(COLCRS, PEEK(COLCRS)+2);
+	COLCRS_value = COLCRS_value + 2;
 
 	printCommand("R", "estart");
-	POKE(COLCRS, PEEK(COLCRS)+2);
+	COLCRS_value = COLCRS_value + 2;
 
 	printCommand("N", "ew");
-	POKE(COLCRS, PEEK(COLCRS)+2);
+	COLCRS_value = COLCRS_value + 2;
 
 	printTilesLeft();
 }
@@ -161,8 +161,8 @@ static void debugLocation(uint8_t x, uint16_t y) {
 	char s[6];
 
 	clearLine(StatusLine);
-	POKE(ROWCRS, 21);
-	POKE(COLCRS, 2);
+	ROWCRS_value = 21;
+	COLCRS_value =  2;
 	printString("Location: ");
 	uint16String(s, x);
 	printString(s);
@@ -458,11 +458,11 @@ static void showNewGameConfirmation(void) {
 	zeroOutMemory(SAVMSC_ptr + RowBytes * StatusLine, 3 * RowBytes);
 	printStatusLine("Start a new game?");
 
-	POKE(ROWCRS, CommandsLine);
-	POKE(COLCRS, 2);
+	ROWCRS_value = CommandsLine;
+	COLCRS_value = 2;
 
 	printCommand("Y", "es");
-	POKE(COLCRS, PEEK(COLCRS)+2);
+	COLCRS_value = COLCRS_value + 2;
 
 	printCommand("N", "o");
 }
@@ -474,8 +474,8 @@ static void hideNewGameConfirmation(void) {
 }
 
 static void handleKeyboard(void) {
-	uint8_t key = PEEK(CH_) & 0x3F;
-	POKE(CH_, 0xFF); // Accept the key
+	uint8_t key = CH_value & 0x3F;
+	CH_value = 0xFF; // Accept the key
 
 	if (isInDialog) {
 		if (key == KEY_Y || key == KEY_RETURN) {
@@ -566,8 +566,8 @@ static void mouseDown(void) {
 static void handleTrigger(void) {
 	static uint8_t prevTrig0 = 0;
 	static uint8_t prevTrig1 = 0;
-	uint8_t trig0 = PEEK(STRIG0);
-	uint8_t trig1 = PEEK(STRIG1);
+	uint8_t trig0 = STRIG0_read;
+	uint8_t trig1 = STRIG1_read;
 
 	// Only the left mouse button is supported, since it is mapped to the joystick fire button on the Atari 9-pin joystick port.
 	// Mouse should be plugged into the second port (STICK1).
