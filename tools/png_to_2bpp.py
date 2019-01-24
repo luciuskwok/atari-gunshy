@@ -18,7 +18,7 @@ with open(sys.argv[1], "rb") as file:
 	pngReader = png.Reader(file=file)
 	(width, height, pixels, info) = pngReader.read()
 	bitPlanes = info["planes"];
-	print("Valid PNG image {}x{}.".format(width, height))
+	print("; PNG image {}x{}.".format(width, height))
 
 	# Store color indexes as a flat array
 	indexedData = []
@@ -34,7 +34,7 @@ with open(sys.argv[1], "rb") as file:
 			colorIndex = 0
 			if lum > 0.9:
 				colorIndex = colorTable[3] # white
-			elif lum > 0.5:
+			elif lum > 0.3:
 				colorIndex = colorTable[2] # light background
 			elif lum > 0.125:
 				colorIndex = colorTable[1] # dark background
@@ -55,7 +55,7 @@ with open(sys.argv[1], "rb") as file:
 			packedByte = 0
 			shift = 0
 
-	print("Atari data length: {}".format(len(packedData)))
+	print("_length: .word {}".format(len(packedData)))
 
 	# Print data
 	count = 0

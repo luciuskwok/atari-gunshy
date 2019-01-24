@@ -1,7 +1,7 @@
 # png_to_tileset.py
 # python3
 
-# Given a PNG file, create tileset data for ANTIC mode 4. 
+# Given the "tiles.png" file, create tileset data for ANTIC mode 4. 
 # This script divides up the PNG image into 16px by 16px units, and converts each unit into 4 tiles. Because mode-4 tiles are 4px width by 8px high, only the even-numbered pixel columns are considered when converting to tiles. 
 
 import png, sys
@@ -34,18 +34,30 @@ def printCharData(charData):
 			sys.stdout.write(",")
 	sys.stdout.write("\n")
 
+def printTileData(tileData, tileIndex):
+	print("; Tile {}".format(tileIndex))
+	i = 0
+	for y in range(0, 4):
+		sys.stdout.write("\t.byte ")
+		for x in range(0, 8):
+			c = tileData[i]
+			i += 1
+			sys.stdout.write("$%0.2X"%c)
+			if x < 7: 
+				sys.stdout.write(",")
+		sys.stdout.write("\n")
+
 
 # == Main Script ==
 with open("tiles.png", "rb") as file:
 	pngReader = png.Reader(file=file)
 	(width, height, pixels, info) = pngReader.read()
 	bitPlaneCount = info["planes"];
-	print("Valid PNG image {}x{}x{}.".format(width, height, bitPlaneCount))
+	print("; PNG image {}x{}x{}.".format(width, height, bitPlaneCount))
 
 	packedData = []
-	upperRow = []
-	lowerRow = []
 	rowIndex = 0
+	totalTiles = 0
 
 	for pixelRow in pixels:
 		colIndex = 0
@@ -58,7 +70,7 @@ with open("tiles.png", "rb") as file:
 			lum = float(r+g+b) / (255 * 3)
 
 			value = (value << 2) 
-			if lum < 0.05:
+			if lum < 0.125:
 				value |= colorMap[0]
 			elif lum < 0.3:
 				value |= colorMap[1]
@@ -72,26 +84,25 @@ with open("tiles.png", "rb") as file:
 				packedData.append(value)
 				value = 0 
 
-		# Take the packed data and reorganize it into two rows of character data.
 		rowIndex += 1
-		if rowIndex % 16 == 8: 
-			upperRow = characterData(packedData)
-			# Reset packedData for lowerRow
-			packedData = []
 
+		# Reorganize packed data into blocks 4 bytes wide by 16 high.
 		if rowIndex % 16 == 0:
-			lowerRow = characterData(packedData)
+			sys.stdout.write("\n")
+			rowBytes = int(len(packedData) / 16)
+			tileCount = int(rowBytes / 2)
 
-			# Output char data in the order 0, 1, halfway, halfway+1
-			groupCount = int(len(lowerRow)/2)
-			for groupIndex in range(0, groupCount):
-				printCharData(upperRow[groupIndex*2])
-				printCharData(upperRow[groupIndex*2+1])
-				printCharData(lowerRow[groupIndex*2])
-				printCharData(lowerRow[groupIndex*2+1])
-				sys.stdout.write("\n") # separate tile groups
+			for tileIndex in range(0, tileCount): 
+				tileData = []
+				for y in range(0, 16):
+					packedIndex = y * rowBytes + tileIndex * 4
+					tileData.extend(packedData[packedIndex:packedIndex+4])
+				printTileData(tileData, totalTiles)
+				totalTiles += 1
 
 			# Reset data for upper and lower rows
 			packedData = []
-			upperRow = []
-			lowerRow = []
+
+	print("; Total tile count: {}".format(totalTiles))
+
+
