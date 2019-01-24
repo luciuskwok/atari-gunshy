@@ -8,8 +8,8 @@
 
 .code 
 
-.export _initVBI
-.proc _initVBI
+.export initVBI
+.proc initVBI
 	.import initMouse
 
 	jsr initMouse
@@ -72,34 +72,55 @@
 
 .export _DLI
 .proc _DLI
-	vcountTopMargin = 15
+	.import _fontPage
+
+	.bss 
+	fontTmp: .res 1
+	.code 
+
+	firstDLI = $1B ; 27 decimal; each DLI is in 12 vcount (24 scanlines)
 
 	pha					
+	;txa 
+	;pha 
 
 	lda VCOUNT 			; use debugger to get actual VCOUNT values
-	cmp #vcountTopMargin+96
-	bcs last_line 
+	cmp #firstDLI+6*12 
+	beq text_box		; if VCOUNT == value for text_box
+	bcs last_line 		; if VCOUNT > value for text_box
+
+	inc_font:
+		lda fontTmp 	; set CHBASE to next font block
+		clc 
+		adc #4 
+		sta fontTmp
+		;sta WSYNC
+		sta CHBASE
+		jmp return 
 
 	text_box:
 		lda COLOR6
-			sta WSYNC		; wait for horizontal sync
-			sta COLPF2		; text box background
-		lda COLOR5
-			sta COLPF1		; text color
+			sta WSYNC	; wait for horizontal sync
+			sta COLPF2	; text box background
 		lda #$E0
-			sta CHBASE		; ROM font
+			sta CHBASE	; ROM font
+		lda COLOR5
+			sta COLPF1	; text color
 		jmp return
 
 	last_line:
-		lda COLOR2			; restore graphics colors
-			sta WSYNC		; wait for horizontal sync
+		lda COLOR2		; restore graphics colors
+			sta WSYNC	; wait for horizontal sync
 			sta COLPF2		
+		lda CHBAS
+			sta CHBASE	; custom font
+			sta fontTmp
 		lda COLOR1
 			sta COLPF1		
-		lda CHBAS
-			sta CHBASE		; custom font
 
 	return:
+		;pla 
+		;tax 
 		pla
 		rti
 .endproc 

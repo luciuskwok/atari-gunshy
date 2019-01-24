@@ -8,6 +8,8 @@
 .bss
 	.export _spritePage
 	_spritePage: .res 1
+	.export _fontPage
+	_fontPage: .res 1
 
 .data 
 	prevSelectedTileSpriteY: .byte 0
@@ -145,7 +147,9 @@
 ; void initGraphics(void);
 .export _initGraphics
 .proc _initGraphics
-	.import _initVBI
+	.import pushax 
+	.import _zeroOutMemory
+	.import initVBI
 
 	; Constants
 	anticOptions = $2E 	; normal playfield, enable players & missiles, enable DMA
@@ -165,16 +169,31 @@
 		bpl loop_color
 
 	; Reserved memory layout:
+	; Total reserved memory below RAMTOP is 9 kB. 
+	; 1 kB (4 pages): screen area (already set up by runtime)
+	; 7 kB (28 pages): font area
 	; 1 kB (4 pages): sprite area
-	; 1 kB (4 pages): screen graphics area (already set up by runtime)
 	lda RAMTOP 
+
 	sec 
-	sbc #8 			; 8 pages = 2 kB below RAMTOP
+	sbc #32 
+	sta _fontPage 	; 32 pages = 8 kB below RAMTOP
+
+	sec 
+	sbc #4 			; 4 pages = 1 kB below fontPage
 	sta _spritePage
+
+	; Clear reserved memory, except for screen area
+	tax 
+	lda #0
+	jsr pushax
+	lda #0			; length = 8*4*256 = 8 kB
+	ldx #8*4
+	jsr _zeroOutMemory 	
 
 	jsr initDisplayList
 	jsr initSprite
-	jsr _initVBI
+	jsr initVBI
 
 	; Restore screen
 	lda #$20 		; switch to custom font
@@ -191,38 +210,74 @@
 	.importzp ptr1 
 	.import _DLI
 
-	; Modify existing display list
+	.rodata 
+	displayList:
+		.byte $70, $70, $70 	; 3 * 8 blank lines
+		.byte DL_TILE|DL_LMS
+		.byte 0, 0
+		.byte DL_TILE
+		.byte DL_TILE|DL_DLI
+		.byte DL_TILE
+		.byte DL_TILE
+		.byte DL_TILE|DL_DLI
+		.byte DL_TILE
+		.byte DL_TILE
+		.byte DL_TILE|DL_DLI
+		.byte DL_TILE
+		.byte DL_TILE
+		.byte DL_TILE|DL_DLI
+		.byte DL_TILE
+		.byte DL_TILE
+		.byte DL_TILE|DL_DLI
+		.byte DL_TILE
+		.byte DL_TILE
+		.byte DL_TILE|DL_DLI
+		.byte DL_TILE
+		.byte DL_TILE
+		.byte DL_TILE|DL_DLI
+		.byte DL_TEXT 			; begin text box
+		.byte DL_TEXT
+		.byte DL_TEXT|DL_DLI 	; last-line DLI
+		.byte DL_JVB
+	.code
+
+	; Write custom display list
 	lda SDLSTL 
 	sta ptr1 
 	lda SDLSTL+1
 	sta ptr1+1
 
-	ldy #3
-	lda #DL_TILE|DL_LMS 
-	sta (ptr1),Y 		; 1 row of tiles
-
-	ldy #6
-	lda #DL_TILE
-	loop_dl_tiles:
-		sta (ptr1),Y
+	ldy #0
+	loop:
+		lda displayList,Y 
+		sta (ptr1),Y 
 		iny 
-		cpy #(19+6) 	; 19 more row of tiles
-		bne loop_dl_tiles 	
 
-	lda #DL_TILE|DL_DLI ; 1 more row of tiles, this with DLI
-	sta (ptr1),Y		; = 21 total rows of tiles
-	iny 
+		cmp #DL_JVB		; if JVB: append SDLSTL value and end loop
+		bne skip_jvb
+			lda ptr1
+			sta (ptr1),Y 
+			iny 
+			lda ptr1+1
+			sta (ptr1),Y 
+			jmp end_loop
+		skip_jvb:
 
-	lda #DL_TEXT
-	sta (ptr1),Y		; text
-	iny 
+		tax 
+		and #$0F 
+		beq loop 		; if blank lines: continue
 
-	sta (ptr1),Y		; text
-	iny 
-
-	lda #DL_TEXT|DL_DLI
-	sta (ptr1),Y		; text | last-line DLI
-	iny 
+		txa 
+		and #DL_LMS 	; if LMS: append SAVMSC and continue
+		beq loop 
+			lda SAVMSC 
+			sta (ptr1),Y 
+			iny 
+			lda SAVMSC+1 
+			sta (ptr1),Y 
+			iny 
+			jmp loop 
+	end_loop:
 
 	; Enable DLI
 	lda #<_DLI
@@ -234,36 +289,13 @@
 .endproc
 
 .proc initSprite
-	.importzp ptr1
-	.import pushax 
-	.import zeroOutPtr1
-	.import _zeroOutMemory
-
-	spriteArea = SAVADR
-		lda _spritePage
-		sta spriteArea+1
-		lda #0
-		sta spriteArea 
-
-	; Clear 1024 bytes in sprite area
-		lda #0 			; ptr = spriteArea
-		ldx _spritePage
-		jsr pushax
-		lda #0			; length = 4*256 = 1 kB
-		ldx #4
-		jsr _zeroOutMemory 	
+	.import zeroOutAXY
 
 	; Clear GTIA registers 
 		lda #<HPOSP0
-		sta ptr1 
-		lda #>HPOSP0
-		sta ptr1+1
+		ldx #>HPOSP0
 		ldy #12
-		jsr zeroOutPtr1
-
-	; Set specific sprite data
-		; lda #0		; P1 is single width (0=single, 1=double, 3=quad)
-		; sta SIZEP1 	; P1 is for the selected tile effect.
+		jsr zeroOutAXY
 
 	; Set up ANTIC
 		lda _spritePage 
@@ -272,6 +304,5 @@
 		sta GPRIOR
 		lda #3		; enable both missiles & players 
 		sta GRACTL
-
 	rts
 .endproc 

@@ -35,10 +35,12 @@
 	rts 
 .endproc 
 
-.export zeroOutPtr1
-.proc zeroOutPtr1
-	; On entry: length in Y, pointer in ptr1.
+.export zeroOutAXY
+.proc zeroOutAXY
+	; On entry: pointer in AX, length in Y.
 	.importzp ptr1 
+	sta ptr1 
+	stx ptr1+1
 	lda #0
 	loop:
 		dey 
