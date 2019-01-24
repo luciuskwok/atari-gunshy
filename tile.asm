@@ -49,8 +49,10 @@ maskTemp:  .res 5
 	.import _fontPage
 
 	; Fill the screen with $FF
+	ldx _fontPage 
+	ldy #7*4
 	lda #$FF 
-	jsr fillFontArea
+	jsr fillMemoryPages
 
 	level = tmp1 
 	lda #0
@@ -122,24 +124,19 @@ maskTemp:  .res 5
 	rts
 .endproc 
 
-.proc fillFontArea 
-	; Fills entire 7 kB font area with A
+.export fillMemoryPages
+.proc fillMemoryPages
+	; Fills memory pages starting from X for Y pages with A 
 	.importzp ptr1 
 	.importzp tmp1 
-	.import _fontPage
 
-	tay 
-
-	lda _fontPage
-	sta ptr1+1
-	lda #0
-	sta ptr1 
+	stx ptr1+1
+	ldx #0
+	stx ptr1 
 
 	pageIndex = tmp1
-		lda #7*4
-		sta pageIndex 
+		sty pageIndex 
 
-	tya 
 	loop_page:
 		ldy #0
 		loop_byte:
