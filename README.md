@@ -19,3 +19,5 @@ If you get build errors, make sure you have the latest maintained version of cc6
 If you're on Windows, you can download the pre-built binaries in the Windows snapshot.
 
 If you're on Mac OS, you can clone or download cc65 from github and in the terminal type `install bin` and then `install lib`. 
+
+Make sure to put the path to the cc65 bin folder in your /etc/profile or equivalent location so that the shell can find it. 

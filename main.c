@@ -171,6 +171,23 @@ static void debugLocation(uint8_t x, uint16_t y) {
 	printString(s);
 }
 
+static void selectTile(TileSpecifier *tile) {
+	point_t loc;
+
+	if (tile) {
+		loc = tileLocation(tile->level, tile->y, tile->x);
+		setSelectionLocation(loc.x + 2, loc.y);
+
+		firstTileSelected.value = tile->value;
+		firstTileSelected.x = tile->x;
+		firstTileSelected.y = tile->y;
+		firstTileSelected.level = tile->level;
+	} else {
+		hideSelection();
+		firstTileSelected.value = 0; 
+	}
+}
+
 static void getShuffledTiles(uint8_t *outArray) {
 	// This version just creates an array in order, for testing.
 	uint8_t x;
@@ -193,6 +210,8 @@ static void startNewGame(void) {
 	uint8_t layerIndex;
 	uint8_t sortedTiles[144];
 	uint8_t tileIndex = 0;
+
+	selectTile(NULL); // Deselect All
 
 	// Sort tiles
 	getShuffledTiles(sortedTiles);
@@ -381,28 +400,15 @@ static void printTileInfo(TileSpecifier *tile) {
 	}
 
 	// Debugging
-	printString(" Loc:");
-	uint16String(s, tile->level);
-	printString(s);
-	printString(",");
-	uint16String(s, tile->x);
-	printString(s);
-	printString(",");
-	uint16String(s, tile->y);
-	printString(s);
-
-}
-
-static void selectTile(TileSpecifier *tile) {
-	point_t loc;
-
-	loc = tileLocation(tile->level, tile->y, tile->x);
-	setSelectionLocation(loc.x + 2, loc.y);
-
-	firstTileSelected.value = tile->value;
-	firstTileSelected.x = tile->x;
-	firstTileSelected.y = tile->y;
-	firstTileSelected.level = tile->level;
+	// printString(" Loc:");
+	// uint16String(s, tile->level);
+	// printString(s);
+	// printString(",");
+	// uint16String(s, tile->x);
+	// printString(s);
+	// printString(",");
+	// uint16String(s, tile->y);
+	// printString(s);
 }
 
 static void removeTile(TileSpecifier *tile) {
@@ -435,6 +441,8 @@ static void restartGame(void) {
 	// Undo all mvoes
 	TileSpecifier *tile;
 	uint8_t *layer;
+
+	selectTile(NULL); // Deselect All
 
 	while (movesIndex > 0) {
 		movesIndex -= 1;
@@ -548,8 +556,7 @@ static void mouseDown(void) {
 	}
 
 	if (firstTileSelected.value && shouldDeselect) {
-		hideSelection();
-		firstTileSelected.value = 0;
+		selectTile(NULL);
 	}
 	if (shouldRedraw) {
 		drawTileBoardTimed();
