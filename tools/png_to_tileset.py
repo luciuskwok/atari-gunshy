@@ -14,26 +14,6 @@ colorMap = [
 	1 # white becomes playfield color 1
 ]
 
-def characterData(packedData):
-	chars = []
-	charCount = int(len(packedData)/8)
-	for charIndex in range(0, charCount):
-		charUnit = []
-		for y in range(0, 8):
-			c = packedData[charIndex + y * charCount]
-			charUnit.append(c)
-		chars.append(charUnit)
-	return chars
-
-def printCharData(charData):
-	sys.stdout.write(".byte ")
-	for i in range(0, 8):
-		c = charData[i]
-		sys.stdout.write("$%0.2X"%c)
-		if i < 7: 
-			sys.stdout.write(",")
-	sys.stdout.write("\n")
-
 def printTileData(tileData, tileIndex):
 	print("; Tile {}".format(tileIndex))
 	i = 0
@@ -104,5 +84,3 @@ with open("tiles.png", "rb") as file:
 			packedData = []
 
 	print("; Total tile count: {}".format(totalTiles))
-
-
