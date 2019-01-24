@@ -75,8 +75,8 @@ with open("tiles.png", "rb") as file:
 			for tileIndex in range(0, tileCount): 
 				tileData = []
 				for y in range(0, 16):
-					packedIndex = y * rowBytes + tileIndex * 4
-					tileData.extend(packedData[packedIndex:packedIndex+4])
+					packedIndex = y * rowBytes + tileIndex * 2
+					tileData.extend(packedData[packedIndex:packedIndex+2])
 				printTileData(tileData, totalTiles)
 				totalTiles += 1
 

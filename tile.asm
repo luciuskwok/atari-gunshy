@@ -6,59 +6,16 @@
 
 .rodata 
 
-tileCharMap:
-	.byte $88, $89, $8A, $8B ; 1 of discs
-	.byte $8C, $8D, $8E, $8F ; 2 of discs
-	.byte $90, $91, $92, $93 ; 3 of discs
-	.byte $94, $95, $96, $97 ; 4 of discs
-	.byte $98, $99, $9A, $9B ; 5 of discs
-	.byte $9C, $9D, $9E, $9F ; 6 of discs
-	.byte $A0, $A1, $A2, $A3 ; 7 of discs
-	.byte $A4, $A5, $A6, $A7 ; 8 of discs
-	.byte $A8, $A9, $AA, $AB ; 9 of discs
- 
-	.byte $2C, $2D, $2E, $2F ; 1 of chars
-	.byte $30, $31, $2E, $2F ; 2 of chars
-	.byte $32, $33, $2E, $2F ; 3 of chars
-	.byte $34, $35, $2E, $2F ; 4 of chars
-	.byte $36, $37, $2E, $2F ; 5 of chars
-	.byte $38, $39, $2E, $2F ; 6 of chars
-	.byte $3A, $3B, $2E, $2F ; 7 of chars
-	.byte $3C, $3D, $2E, $2F ; 8 of chars
-	.byte $3E, $3F, $2E, $2F ; 9 of chars
-
-	.byte $40, $41, $42, $C3 ; 1 of bamboo
-	.byte $44, $05, $46, $47 ; 2 of bamboo
-	.byte $45, $05, $4A, $4B ; 3 of bamboo
-	.byte $48, $49, $4A, $4B ; 4 of bamboo
-	.byte $4C, $4D, $4E, $4F ; 5 of bamboo
-	.byte $50, $51, $52, $53 ; 6 of bamboo
-	.byte $54, $55, $56, $57 ; 7 of bamboo
-	.byte $58, $59, $5A, $5B ; 8 of bamboo
-	.byte $5C, $5D, $5E, $5F ; 9 of bamboo
-
-	.byte $64, $65, $66, $67 ; East wind
-	.byte $6C, $6D, $6E, $6F ; South wind
-	.byte $68, $69, $6A, $6B ; West wind
-	.byte $60, $61, $62, $63 ; North wind
-
-	.byte $70, $71, $72, $73 ; Red dragon
-	.byte $74, $75, $76, $77 ; Green dragon
-	.byte $04, $05, $06, $07 ; White dragon
-
-	.byte $F8, $F9, $FA, $FB ; Moon
-	.byte $FC, $FD, $7E, $7F ; Flower
-
 blankTile:
-	.byte $00,$00,$00,$00,$15,$55,$5C,$00,$15,$55,$5F,$00,$15,$55,$5F,$00
-	.byte $15,$55,$5F,$00,$15,$55,$5F,$00,$15,$55,$5F,$00,$15,$55,$5F,$00
-	.byte $15,$55,$5F,$00,$15,$55,$5F,$00,$3F,$FF,$F3,$00,$0F,$FF,$FC,$00
+	.byte $00,$00,$00,$00,$01,$55,$55,$80,$01,$55,$55,$A0,$01,$55,$55,$A0
+	.byte $01,$55,$55,$A0,$01,$55,$55,$A0,$01,$55,$55,$A0,$01,$55,$55,$A0
+	.byte $01,$55,$55,$A0,$01,$55,$55,$A0,$02,$AA,$AA,$20,$00,$AA,$AA,$80
 	.byte $00,$00,$00,$00
 blankTileMask:
-	.byte $C0,$00,$03,$FF,$00,$00,$00,$FF,$00,$00,$00,$3F,$00,$00,$00,$3F
-	.byte $00,$00,$00,$3F,$00,$00,$00,$3F,$00,$00,$00,$3F,$00,$00,$00,$3F
-	.byte $00,$00,$00,$3F,$00,$00,$00,$3F,$00,$00,$00,$3F,$C0,$00,$00,$3F
-	.byte $F0,$00,$00,$3F
+	.byte $FC,$00,$00,$3F,$F0,$00,$00,$0F,$F0,$00,$00,$03,$F0,$00,$00,$03
+	.byte $F0,$00,$00,$03,$F0,$00,$00,$03,$F0,$00,$00,$03,$F0,$00,$00,$03
+	.byte $F0,$00,$00,$03,$F0,$00,$00,$03,$F0,$00,$00,$03,$FC,$00,$00,$03
+	.byte $FF,$00,$00,$03
 	blankTileHeight = 13 	; lines
 	blankTileLength = blankTileHeight*4 
 
@@ -253,7 +210,28 @@ maskTemp:  .res 5
 .export _drawTile
 .proc _drawTile
 	; on entry: ROWCRS=y, COLCRS=x
+	.importzp ptr1
+	.import tileset
 	.import _setSavadrToCursor
+
+	tileFace = ptr1 
+		sec  			; tile = (tile - 1) / 4 * 32
+		sbc #1 
+		and #$FC
+		ldx #0
+		stx tileFace+1
+		asl a 
+		rol tileFace+1
+		asl a 
+		rol tileFace+1
+		asl a 
+		rol tileFace+1
+		clc 
+		adc #<tileset
+		sta tileFace 
+		lda tileFace+1
+		adc #>tileset 
+		sta tileFace+1
 
 	lda COLCRS 	; calculate SHFAMT: number of bits to shift right
 	and #3 
@@ -266,8 +244,12 @@ maskTemp:  .res 5
 	loop_line:
 		jsr _getCursorAddr 
 
-		ldx ROWINC 			; Get mask
-		lda blankTileMask,X
+		lda ROWINC 			; Output 2 lines for each 1 line in source
+		and #$FE
+		asl a 				; X steps by 4, ROWINC steps by 1
+		tax 
+
+		lda blankTileMask,X	; Get mask
 		sta maskTemp 
 		lda blankTileMask+1,X
 		sta maskTemp+1
@@ -280,107 +262,65 @@ maskTemp:  .res 5
 
 		lda blankTile,X		; Get image
 		sta imageTemp 
-		lda blankTile+1,X
-		sta imageTemp+1
-		lda blankTile+2,X
-		sta imageTemp+2
 		lda blankTile+3,X
 		sta imageTemp+3
 		lda #0
 		sta imageTemp+4 
 
+		cpx #2*4
+		bcc outside_part 
+		cpx #9*4
+		bcs outside_part 
+		inside_part:
+			lda ROWINC
+			sec 
+			sbc #4
+			asl a 
+			tay 
+			lda (tileFace),Y 
+			sta imageTemp+1
+			iny 
+			lda (tileFace),Y 
+			sta imageTemp+2
+			jmp end_outside_part 
+		outside_part:
+			lda blankTile+1,X	; Lines above or below face of tile
+			sta imageTemp+1
+			lda blankTile+2,X
+			sta imageTemp+2
+		end_outside_part:
+
 		jsr doBitShift
 
 		ldx #0 				; Apply mask and image
+		ldy #0
 		loop_col:
-			txa 
-			asl a 
-			asl a 
-			asl a 
+			lda (SAVADR),Y
+			and maskTemp,X 
+			ora imageTemp,X 
+			sta (SAVADR),Y
+
+			tya 
+			clc 
+			adc #8 
 			tay 
-
-			lda (SAVADR),Y
-			and maskTemp,X 
-			ora imageTemp,X 
-			sta (SAVADR),Y
-
-			iny 
-			lda (SAVADR),Y
-			and maskTemp,X 
-			ora imageTemp,X 
-			sta (SAVADR),Y
 
 			inx 
 			cpx #5
 			bne loop_col
 
 		next_line:
-			lda ROWCRS
-			clc 
-			adc #2
-			sta ROWCRS
+			inc ROWCRS
 
-			lda ROWINC
-			clc 
-			adc #4
-			sta ROWINC
-			cmp #blankTileLength
-			bcc loop_line
+			ldx ROWINC
+			inx 
+			stx ROWINC 
+			cpx #blankTileHeight*2
+			bcs return
+			jmp loop_line
 
-
-    rts ; remove after testing
-
-    pha 
-	jsr _setSavadrToCursor
-	pla 
-	sec 
-	sbc #1 
-	and #$FC 		; mask out lower 2 bits to get offset into tileCharMap
-	tax 
-
-	ldy #1 			; draw upper half of face
-	lda tileCharMap,X
-	sta (SAVADR),Y 
-	iny 
-	lda tileCharMap+1,X 
-	sta (SAVADR),Y 
-
-	ldy #41 		; draw lower half of face
-	lda tileCharMap+2,X
-	sta (SAVADR),Y 
-	iny 
-	lda tileCharMap+3,X 
-	sta (SAVADR),Y 
-
-	ldy #81 		; draw front side of tile
-	lda #$82
-	sta (SAVADR),Y 
-	iny 
-	lda #$83
-	sta (SAVADR),Y 
-
-	ldy #0 
-	lda (SAVADR),Y 
-	bne skip_left0
-		lda #1
-		sta (SAVADR),Y 
-	skip_left0:
-
-	ldy #40 
-	lda (SAVADR),Y 
-	bne skip_left1
-		lda #1
-		sta (SAVADR),Y 
-	skip_left1:
-
-	ldy #80 
-	lda (SAVADR),Y 
-	bne skip_left2
-		lda #1
-		sta (SAVADR),Y 
-	skip_left2:
-
-	rts 
+	return:
+		rts 
 .endproc 
 
 .proc doBitShift

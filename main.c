@@ -230,7 +230,7 @@ static void startNewGame(void) {
 	movesIndex = 0;
 	printTilesLeft();
 
-	drawTileBoard();
+	drawTileBoardTimed();
 }
 
 static uint8_t pointInRect(uint8_t ptx, uint8_t pty, uint8_t rx, uint8_t ry, uint8_t rw, uint8_t rh) {
@@ -551,7 +551,7 @@ static void mouseDown(void) {
 		firstTileSelected.value = 0;
 	}
 	if (shouldRedraw) {
-		drawTileBoard();
+		drawTileBoardTimed();
 	}
 }
 

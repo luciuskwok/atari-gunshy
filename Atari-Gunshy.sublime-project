@@ -9,7 +9,7 @@
 	[
 		{
 			"name": "CC65",
-			"shell_cmd": "cl65 -O -t atari -C config.cfg -m __linker_map.txt main.c font.asm graphics.asm interrupts.asm misc.asm mouse.asm text.asm tile.asm -o gunshy.xex"
+			"shell_cmd": "cl65 -O -t atari -C config.cfg -m __linker_map.txt main.c graphics.asm interrupts.asm misc.asm mouse.asm text.asm tile.asm tileset.asm -o gunshy.xex"
 
 		}
 	]
