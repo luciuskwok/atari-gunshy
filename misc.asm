@@ -1,6 +1,31 @@
 ; misc.asm 
 
 
+.export fillMemoryPages
+.proc fillMemoryPages
+	; Fills memory pages starting from X for Y pages with A 
+	.importzp ptr1 
+	.importzp tmp1 
+
+	stx ptr1+1
+	ldx #0
+	stx ptr1 
+
+	pageIndex = tmp1
+		sty pageIndex 
+
+	loop_page:
+		ldy #0
+		loop_byte:
+			sta (ptr1),Y 
+			iny 
+			bne loop_byte 
+		inc ptr1+1 
+		dec pageIndex
+		bne loop_page
+	rts 
+.endproc 
+
 ; void zeroOutMemory(uint8_t *ptr, uint16_t length);
 .export _zeroOutMemory
 .proc _zeroOutMemory

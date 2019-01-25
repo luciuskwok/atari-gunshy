@@ -41,8 +41,8 @@ maskTemp:  .res 5
 .proc _drawTileBoard
 	.importzp tmp1, tmp2, tmp3, tmp4
 	.importzp ptr2
-	.import _zeroOutMemory
-	.import pushax, pusha
+	.import fillMemoryPages
+	.import pusha
 	.import _tileLayers
 	.import _tileApex
 	.import _layerSize
@@ -122,31 +122,6 @@ maskTemp:  .res 5
 		bne loop_level 
 
 	rts
-.endproc 
-
-.export fillMemoryPages
-.proc fillMemoryPages
-	; Fills memory pages starting from X for Y pages with A 
-	.importzp ptr1 
-	.importzp tmp1 
-
-	stx ptr1+1
-	ldx #0
-	stx ptr1 
-
-	pageIndex = tmp1
-		sty pageIndex 
-
-	loop_page:
-		ldy #0
-		loop_byte:
-			sta (ptr1),Y 
-			iny 
-			bne loop_byte 
-		inc ptr1+1 
-		dec pageIndex
-		bne loop_page
-	rts 
 .endproc 
 
 ; point_t tileLocation(uint8_t level, uint8_t row, uint8_t col);

@@ -144,8 +144,7 @@
 ; void initGraphics(void);
 .export _initGraphics
 .proc _initGraphics
-	.import pushax 
-	.import _zeroOutMemory
+	.import fillMemoryPages
 	.import initVBI
 
 	; Constants
@@ -181,13 +180,11 @@
 	sbc #4 			; 4 pages = 1 kB below fontPage
 	sta _spritePage
 
-	; Clear reserved memory, except for screen area
+	; Clear sprite memory
 	tax 
+	ldy #4 			; 1 kB sprite area
 	lda #0
-	jsr pushax
-	lda #0			; length = 8*4*256 = 8 kB
-	ldx #8*4
-	jsr _zeroOutMemory 	
+	jsr fillMemoryPages
 
 	jsr initDisplayList
 	jsr initScreenMemory
