@@ -21,11 +21,10 @@ extern uint8_t pointerHasMoved;
 extern point_t mouseLocation;
 
 // tile.asm stuff
-point_t tileLocation(uint8_t level, uint8_t row, uint8_t col);
 void drawTileBoard(void);
-point_t tileLocation(uint8_t level, uint8_t row, uint8_t col);
+void tileLocation(uint8_t level, uint8_t row, uint8_t col);
 void drawTile(void);
-uint8_t getCursorAddr(void);
+uint8_t* getCursorAddr(void);
 void doBitShift(void);
 void getTileMaskAtRow(void);
 
@@ -187,7 +186,9 @@ static void selectTile(TileSpecifier *tile) {
 	point_t loc;
 
 	if (tile) {
-		loc = tileLocation(tile->level, tile->y, tile->x);
+		tileLocation(tile->level, tile->y, tile->x);
+		loc.x = COLCRS_value;
+		loc.y = ROWCRS_value;
 		setSelectionLocation(loc.x + 2, loc.y);
 
 		firstTileSelected.value = tile->value;
@@ -292,7 +293,9 @@ static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 			for (col=layerWidth-1; col>=0; --col) {
 				tile = layer[col + row * layerWidth];
 				if (tile) {
-					loc = tileLocation(level, row, col);
+					tileLocation(level, row, col);
+					loc.x = COLCRS_value;
+					loc.y = ROWCRS_value;
 					if (pointInRect(x, y, loc.x+2, loc.y, 13, 26)) {
 						outTile->value = tile;
 						outTile->x = col;

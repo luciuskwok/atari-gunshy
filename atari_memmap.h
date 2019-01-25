@@ -104,7 +104,7 @@
 #define SAVMSC_ptr (*(char**)SAVMSC)
 #define SAVADR_ptr (*(char**)SAVADR)
 #define ROWCRS_value (*(char*)ROWCRS)
-#define COLCRS_value (*(unsigned int*)COLCRS)
+#define COLCRS_value (*(char*)COLCRS)
 #define BITMSK_value (*(char*)BITMSK)
 #define CH_value (*(char*)CH_)
 

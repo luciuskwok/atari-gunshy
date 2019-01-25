@@ -111,93 +111,109 @@ maskTemp:  .res 5
 	lda #$FF 
 	jsr fillMemoryPages
 
-	level = tmp1 
-	lda #0
-	sta level 
+	tileRow = OLDROW 
+	tileCol = OLDCOL
+	tileLvl = OLDCOL+1
+		lda #0
+		sta tileLvl
 
-	row = tmp2 
-	col = tmp3
 	layer = ptr2 
-	layerIndex = tmp4 
-
+	tileIndex = tmp4 
 
 	loop_level:
-		ldx level 
+		ldx tileLvl 
 		lda _tileLayers,X
 		sta layer 
 		lda _tileLayers+1,X 
 		sta layer+1
 
 		lda #0
-		sta layerIndex
-		sta row 
+		sta tileIndex
+		sta tileRow 
 		loop_row:
-			ldx level 
+			ldx tileLvl 
 			lda #0
-			sta col 
+			sta tileCol 
 			loop_col:
-				ldy layerIndex 
+				ldy tileIndex 
 				lda (layer),Y 
-				iny 
-				sty layerIndex 
-				cmp #0
 				beq next_col
 
 				pha ; tile value
-				lda level 
-				lsr a
-				jsr pusha 
-				lda row 
-				jsr pusha 
-				lda col 
-				jsr _tileLocation
+				jsr tileLocationInternal
 
 				pla ; tile value
 				jsr _drawTile
 			next_col:
-				lda col 
+				inc tileIndex
+				lda tileCol 
 				clc 
 				adc #1
-				sta col 
-				ldx level 
+				sta tileCol 
+				ldx tileLvl 
 				cmp _layerSize,X ; layerSize[level].x: layer width
 				bne loop_col 
 		next_row:
-			lda row 
+			lda tileRow 
 			clc 
 			adc #1 
-			sta row 
-			ldx level 
+			sta tileRow 
+			ldx tileLvl 
 			cmp _layerSize+1,X ; layerSize[level].y: layer height
 			bne loop_row
 	next_level:
-		lda level 
+		lda tileLvl 
 		clc 
 		adc #2
-		sta level 
+		sta tileLvl 
 		cmp #10
 		bne loop_level 
 
 	rts
 .endproc 
 
-; point_t tileLocation(uint8_t level, uint8_t row, uint8_t col);
+; void tileLocation(uint8_t level, uint8_t row, uint8_t col);
 .export _tileLocation
 .proc _tileLocation
 	.import popa 
+
+	col = OLDCOL
+		sta col 
+
+	row = OLDROW
+		jsr popa 
+		sta row 
+
+	level = OLDCOL+1
+		jsr popa 
+		asl a
+		sta level 
+
+	jmp tileLocationInternal
+.endproc 
+
+.proc tileLocationInternal
+	; on entry:
+	; OLDROW: tile row
+	; OLDCOL: tile col
+	; OLDCOL+1: tile level
+	; returns location in pixels in ROWCRS, COLCRS
 	.import mulax10 ; uses ptr1
 
-	; col = col * 10 + boardCenter.x
-	sta OLDCOL 
+	tileCol = OLDCOL 
+	tileRow = OLDROW
+	tileLvl = OLDCOL+1 ; tileLvl = level * 2
+
+	; col = tileCol * 10 + boardCenter.x
+	lda tileCol 
 	ldx #0
 	jsr mulax10
 	clc 
 	adc boardCenterX
 	sta COLCRS 
 
-	; row = row * 20 + boardCenter.y
-	jsr popa 
-	sta OLDROW
+	; row = tileRow * 20 + boardCenter.y
+	lda tileRow
 	asl a 
 	ldx #0
 	jsr mulax10
@@ -206,9 +222,8 @@ maskTemp:  .res 5
 	sta ROWCRS
 
 	; offset = layerPixelOffset[level]
-	jsr popa 			; level
-	asl a 
-	tax 
+	ldx tileLvl
+
 	lda COLCRS
 	sec
 	sbc layerPixelOffset,X 	; col -= offset.x
@@ -222,7 +237,7 @@ maskTemp:  .res 5
 	; Special case for layer 0 far left and far right tiles
 	cpx #0
 	bne skip_layer0
-		lda OLDCOL
+		lda tileCol
 		cmp #0 
 		bne skip_left_endcap
 			lda ROWCRS
@@ -233,7 +248,7 @@ maskTemp:  .res 5
 		skip_left_endcap:
 		cmp #13
 		bne skip_right_endcap
-			lda OLDROW
+			lda tileRow
 			cmp #4
 			bne skip_second_to_last
 				lda ROWCRS
@@ -256,8 +271,6 @@ maskTemp:  .res 5
 		skip_right_endcap:
 	skip_layer0:
 
-	ldx ROWCRS 
-	lda COLCRS
 	rts 
 .endproc 
 
