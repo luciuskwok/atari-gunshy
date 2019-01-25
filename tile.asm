@@ -11,13 +11,68 @@ blankTile:
 	.byte $01,$55,$55,$A0,$01,$55,$55,$A0,$01,$55,$55,$A0,$01,$55,$55,$A0
 	.byte $01,$55,$55,$A0,$01,$55,$55,$A0,$02,$AA,$AA,$20,$00,$AA,$AA,$80
 	.byte $00,$00,$00,$00
-blankTileMask:
-	.byte $FC,$00,$00,$3F,$F0,$00,$00,$0F,$F0,$00,$00,$03,$F0,$00,$00,$03
-	.byte $F0,$00,$00,$03,$F0,$00,$00,$03,$F0,$00,$00,$03,$F0,$00,$00,$03
-	.byte $F0,$00,$00,$03,$F0,$00,$00,$03,$F0,$00,$00,$03,$FC,$00,$00,$03
-	.byte $FF,$00,$00,$03
 	blankTileHeight = 13 	; lines
 	blankTileLength = blankTileHeight*4 
+
+tileMaskShift0:
+	.byte $C0,$00,$03,$FF
+	.byte $00,$00,$00,$FF
+	.byte $00,$00,$00,$3F
+	.byte $00,$00,$00,$3F
+	.byte $00,$00,$00,$3F
+	.byte $00,$00,$00,$3F
+	.byte $00,$00,$00,$3F
+	.byte $00,$00,$00,$3F
+	.byte $00,$00,$00,$3F
+	.byte $00,$00,$00,$3F
+	.byte $00,$00,$00,$3F
+	.byte $C0,$00,$00,$3F
+	.byte $F0,$00,$00,$3F
+
+tileMaskShift2:
+	.byte $F0,$00,$00,$FF
+	.byte $C0,$00,$00,$3F
+	.byte $C0,$00,$00,$0F
+	.byte $C0,$00,$00,$0F
+	.byte $C0,$00,$00,$0F
+	.byte $C0,$00,$00,$0F
+	.byte $C0,$00,$00,$0F
+	.byte $C0,$00,$00,$0F
+	.byte $C0,$00,$00,$0F
+	.byte $C0,$00,$00,$0F
+	.byte $C0,$00,$00,$0F
+	.byte $F0,$00,$00,$0F
+	.byte $FC,$00,$00,$0F
+
+tileMaskShift4:
+	.byte $FC,$00,$00,$3F
+	.byte $F0,$00,$00,$0F
+	.byte $F0,$00,$00,$03
+	.byte $F0,$00,$00,$03
+	.byte $F0,$00,$00,$03
+	.byte $F0,$00,$00,$03
+	.byte $F0,$00,$00,$03
+	.byte $F0,$00,$00,$03
+	.byte $F0,$00,$00,$03
+	.byte $F0,$00,$00,$03
+	.byte $F0,$00,$00,$03
+	.byte $FC,$00,$00,$03
+	.byte $FF,$00,$00,$03
+
+tileMaskShift6:
+	.byte $FF,$00,$00,$0F
+	.byte $FC,$00,$00,$00
+	.byte $FC,$00,$00,$00
+	.byte $FC,$00,$00,$00
+	.byte $FC,$00,$00,$00
+	.byte $FC,$00,$00,$00
+	.byte $FC,$00,$00,$00
+	.byte $FC,$00,$00,$00
+	.byte $FC,$00,$00,$00
+	.byte $FC,$00,$00,$00
+	.byte $FC,$00,$00,$00
+	.byte $FF,$00,$00,$00
+	.byte $FF,$C0,$00,$00
 
 
 layerPixelOffset:
@@ -27,12 +82,14 @@ layerPixelOffset:
 	.byte 26, 42
 	.byte 13, 36
 
-boardCenterX: .byte 74
+boardCenterX: .byte 72
 boardCenterY: .byte 90
 
 .bss 
 imageTemp: .res 5
 maskTemp:  .res 5
+
+
 .code 
 
 
@@ -242,21 +299,12 @@ maskTemp:  .res 5
 	loop_line:
 		jsr _getCursorAddr 
 
-		lda ROWINC 			; Output 2 lines for each 1 line in source
+		lda ROWINC 				; Output 2 lines for each 1 line in source
 		and #$FE
-		asl a 				; X steps by 4, ROWINC steps by 1
+		asl a 					; X steps by 4, ROWINC steps by 1
 		tax 
 
-		lda blankTileMask,X	; Get mask
-		sta maskTemp 
-		lda blankTileMask+1,X
-		sta maskTemp+1
-		lda blankTileMask+2,X
-		sta maskTemp+2
-		lda blankTileMask+3,X
-		sta maskTemp+3
-		lda #$FF
-		sta maskTemp+4 
+		jsr _getTileMaskAtRow	; Get mask
 
 		lda blankTile,X		; Get image
 		sta imageTemp 
@@ -288,24 +336,38 @@ maskTemp:  .res 5
 			sta imageTemp+2
 		end_outside_part:
 
-		jsr doBitShift
+		jsr _doBitShift
 
-		ldx #0 				; Apply mask and image
+		; Apply mask and image to 5 colummns in unrolled loop
 		ldy #0
-		loop_col:
-			lda (SAVADR),Y
-			and maskTemp,X 
-			ora imageTemp,X 
-			sta (SAVADR),Y
+		lda (SAVADR),Y 		; 5+1
+		and maskTemp 		; 4
+		ora imageTemp	 	; 4
+		sta (SAVADR),Y		; 6 
 
-			tya 
-			clc 
-			adc #8 
-			tay 
+		ldy #8
+		lda (SAVADR),Y 		; 5+1
+		and maskTemp+1 		; 4
+		ora imageTemp+1	 	; 4
+		sta (SAVADR),Y		; 6 
 
-			inx 
-			cpx #5
-			bne loop_col
+		ldy #16
+		lda (SAVADR),Y 		; 5+1
+		and maskTemp+2 		; 4
+		ora imageTemp+2	 	; 4
+		sta (SAVADR),Y		; 6 
+
+		ldy #24
+		lda (SAVADR),Y 		; 5+1
+		and maskTemp+3 		; 4
+		ora imageTemp+3	 	; 4
+		sta (SAVADR),Y		; 6 
+
+		ldy #32
+		lda (SAVADR),Y 		; 5+1
+		and maskTemp+4 		; 4
+		ora imageTemp+4	 	; 4
+		sta (SAVADR),Y		; 6 
 
 		next_line:
 			inc ROWCRS
@@ -321,28 +383,92 @@ maskTemp:  .res 5
 		rts 
 .endproc 
 
-.proc doBitShift
+.export _getTileMaskAtRow
+.proc _getTileMaskAtRow
+	; sets maskTemp data, with X = row * 4, SHFAMT = bit shift
+
+	lda SHFAMT 
+	cmp #6
+	bcs shift_6_bits 
+	cmp #4
+	bcs shift_4_bits
+	cmp #2
+	bcs shift_2_bits
+
+	no_shift:
+		lda tileMaskShift4,X
+		sta maskTemp 
+		lda tileMaskShift4+1,X
+		sta maskTemp+1
+		lda tileMaskShift4+2,X
+		sta maskTemp+2
+		lda tileMaskShift4+3,X
+		sta maskTemp+3
+		lda #$FF
+		sta maskTemp+4
+		rts 
+	shift_2_bits:
+		lda tileMaskShift6,X
+		sta maskTemp 
+		lda tileMaskShift6+1,X
+		sta maskTemp+1
+		lda tileMaskShift6+2,X
+		sta maskTemp+2
+		lda tileMaskShift6+3,X
+		sta maskTemp+3
+		lda #$FF
+		sta maskTemp+4
+		rts 
+	shift_4_bits:
+		lda #$FF
+		sta maskTemp
+		lda tileMaskShift0,X
+		sta maskTemp+1 
+		lda tileMaskShift0+1,X
+		sta maskTemp+2
+		lda tileMaskShift0+2,X
+		sta maskTemp+3
+		lda tileMaskShift0+3,X
+		sta maskTemp+4
+		rts 
+	shift_6_bits:
+		lda #$FF
+		sta maskTemp
+		lda tileMaskShift2,X
+		sta maskTemp+1 
+		lda tileMaskShift2+1,X
+		sta maskTemp+2
+		lda tileMaskShift2+2,X
+		sta maskTemp+3
+		lda tileMaskShift2+3,X
+		sta maskTemp+4
+		rts 
+.endproc
+
+.export _doBitShift
+.proc _doBitShift
 	; on entry: shiftArea has bits to shift, SHFAMT the number of times to shift right
+	.rodata 
+	shift2RightA:
+
+	shift2RightB:
+
+
+	.code 
+
 	ldy SHFAMT 
 	jmp next_shift
 	loop_shift:
-		sec 
-		ror maskTemp 
-		ror maskTemp+1
-		ror maskTemp+2
-		ror maskTemp+3
-		ror maskTemp+4
-		lsr imageTemp 
-		ror imageTemp+1
-		ror imageTemp+2
-		ror imageTemp+3
-		ror imageTemp+4
-		dey 
+		lsr imageTemp 	; 6
+		ror imageTemp+1	; 6
+		ror imageTemp+2	; 6
+		ror imageTemp+3	; 6
+		ror imageTemp+4	; 6
+		dey  			; 2
 	next_shift:
 		bne loop_shift 
 	rts
 .endproc 
-
 
 .export _getCursorAddr
 .proc _getCursorAddr
@@ -395,5 +521,19 @@ maskTemp:  .res 5
 
 	lda SAVADR 
 	ldx SAVADR+1
+	rts 
+.endproc 
+
+
+; Unused?
+.proc copyMemory 
+	; on entry: Y = length, ptr2 = src, ptr1 = dest
+	.importzp ptr1, ptr2 
+	loop:
+		dey 
+		lda (ptr2),Y 
+		sta (ptr1),Y 
+		cpy #0
+		bne loop 
 	rts 
 .endproc 

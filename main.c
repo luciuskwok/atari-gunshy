@@ -23,6 +23,11 @@ extern point_t mouseLocation;
 // tile.asm stuff
 point_t tileLocation(uint8_t level, uint8_t row, uint8_t col);
 void drawTileBoard(void);
+point_t tileLocation(uint8_t level, uint8_t row, uint8_t col);
+void drawTile(void);
+uint8_t getCursorAddr(void);
+void doBitShift(void);
+void getTileMaskAtRow(void);
 
 // Typedef
 typedef struct TileSpecifier {
@@ -114,6 +119,13 @@ static void drawTileBoardTimed(void) {
         printStringAtXY("     ", 35, 22);
         printStringAtXY(s, 40-len, 22);
     }  
+
+    // Force export of certain symbols
+    startTime = (int)drawTile;
+    startTime = (int)tileLocation;
+    startTime = (int)getCursorAddr;
+    startTime = (int)doBitShift;
+	startTime = (int)getTileMaskAtRow;
 }
 
 static void printCommand(const char *key, const char *title) {

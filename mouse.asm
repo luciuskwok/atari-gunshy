@@ -319,9 +319,12 @@
 .endproc
 
 .proc _startTimer1 
-	lda #64 	; Set timer frequency
+	lda #180 	; Set timer frequency
 	sta AUDF1	; Hz = 63921 / (2 * (AUDF1 + 1))
 	 			; AUDF=64: 491.7 Hz
+	 			; AUDF=127: 249.7 Hz
+	 			; AUDF=180: 176.6 Hz
+	 			; AUDF=255: 124.9 Hz
 
 	lda #$10 	; Set audio channel 1 to use volume-only mode.
 	sta AUDC1 	; This makes it effectively silent.
