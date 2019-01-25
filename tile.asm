@@ -85,13 +85,11 @@ layerPixelOffset:
 boardCenterX: .byte 72
 boardCenterY: .byte 90
 
-.bss 
+.segment "EXTZP": zeropage
 imageTemp: .res 5
 maskTemp:  .res 5
 
-
 .code 
-
 
 ; void drawTileBoard(void);
 .export _drawTileBoard
@@ -146,18 +144,14 @@ maskTemp:  .res 5
 				jsr _drawTile
 			next_col:
 				inc tileIndex
-				lda tileCol 
-				clc 
-				adc #1
-				sta tileCol 
+				inc tileCol 
+				lda tileCol
 				ldx tileLvl 
 				cmp _layerSize,X ; layerSize[level].x: layer width
 				bne loop_col 
 		next_row:
+			inc tileRow
 			lda tileRow 
-			clc 
-			adc #1 
-			sta tileRow 
 			ldx tileLvl 
 			cmp _layerSize+1,X ; layerSize[level].y: layer height
 			bne loop_row
@@ -198,25 +192,26 @@ maskTemp:  .res 5
 	; OLDCOL: tile col
 	; OLDCOL+1: tile level
 	; returns location in pixels in ROWCRS, COLCRS
-	.import mulax10 ; uses ptr1
+
+	.rodata 
+	mul10table: .byte 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160
+	.code
 
 	tileCol = OLDCOL 
 	tileRow = OLDROW
 	tileLvl = OLDCOL+1 ; tileLvl = level * 2
 
 	; col = tileCol * 10 + boardCenter.x
-	lda tileCol 
-	ldx #0
-	jsr mulax10
+	ldx tileCol 
+	lda mul10table,X
 	clc 
 	adc boardCenterX
 	sta COLCRS 
 
 	; row = tileRow * 20 + boardCenter.y
-	lda tileRow
+	ldx tileRow
+	lda mul10table,X
 	asl a 
-	ldx #0
-	jsr mulax10
 	clc 
 	adc boardCenterY
 	sta ROWCRS
@@ -351,7 +346,7 @@ maskTemp:  .res 5
 
 		jsr _doBitShift
 
-		; Apply mask and image to 5 colummns in unrolled loop
+		; Apply mask and image to 5 columns in unrolled loop
 		ldy #0
 		lda (SAVADR),Y 		; 5+1
 		and maskTemp 		; 4

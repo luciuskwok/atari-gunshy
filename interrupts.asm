@@ -5,7 +5,8 @@
 ; Global Variables
 .data 
 	_enableColorCycling: .byte 1
-
+.segment "EXTZP": zeropage
+	dliFontTmp: .res 1
 .code 
 
 .export initVBI
@@ -74,10 +75,6 @@
 .proc _DLI
 	.import _fontPage
 
-	.bss 
-	fontTmp: .res 1
-	.code 
-
 	firstDLI = $1B ; 27 decimal; each DLI is in 12 vcount (24 scanlines)
 
 	pha					
@@ -90,10 +87,10 @@
 	bcs last_line 		; if VCOUNT > value for text_box
 
 	inc_font:
-		lda fontTmp 	; set CHBASE to next font block
+		lda dliFontTmp 	; set CHBASE to next font block
 		clc 
 		adc #4 
-		sta fontTmp
+		sta dliFontTmp
 		;sta WSYNC		; seems that changing CHBASE doesn't affect current scanline
 		sta CHBASE
 		jmp return 
@@ -114,7 +111,7 @@
 			sta COLPF2		
 		lda CHBAS
 			sta CHBASE	; custom font
-			sta fontTmp
+			sta dliFontTmp
 		lda COLOR1
 			sta COLPF1		
 
