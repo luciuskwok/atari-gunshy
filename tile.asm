@@ -75,12 +75,6 @@ tileMaskShift6:
 	.byte $FF,$C0,$00,$00
 
 
-layerPixelOffset:
-	.byte 70, 90
-	.byte 42, 74
-	.byte 34, 58
-	.byte 26, 42
-	.byte 13, 36
 
 boardCenterX: .byte 72
 boardCenterY: .byte 90
@@ -94,13 +88,13 @@ maskTemp:  .res 5
 ; void drawTileBoard(void);
 .export _drawTileBoard
 .proc _drawTileBoard
-	.importzp tmp1, tmp2, tmp3, tmp4
-	.importzp ptr2
+	.importzp ptr2, ptr3
+	.importzp tmp2, tmp3
 	.import fillMemoryPages
-	.import pusha
 	.import _tileLayers
 	.import _tileApex
-	.import _layerSize
+	.import _layerRowBytes
+	.import _layerHeight
 	.import _fontPage
 
 	; Fill the screen with $FF
@@ -116,23 +110,33 @@ maskTemp:  .res 5
 		sta tileLvl
 
 	layer = ptr2 
-	tileIndex = tmp4 
+	tileIndex = tmp2 
+	upperLayer = ptr3
+	upperIndex = tmp3
 
 	loop_level:
-		ldx tileLvl 
+		lda tileLvl 
+		asl a 
+		tax 
 		lda _tileLayers,X
 		sta layer 
 		lda _tileLayers+1,X 
 		sta layer+1
+		lda _tileLayers+2,X
+		sta upperLayer 
+		lda _tileLayers+3,X 
+		sta upperLayer+1
 
 		lda #0
 		sta tileIndex
 		sta tileRow 
 		loop_row:
-			ldx tileLvl 
 			lda #0
 			sta tileCol 
 			loop_col:
+				jsr isTileVisible
+				beq next_col 
+
 				ldy tileIndex 
 				lda (layer),Y 
 				beq next_col
@@ -141,29 +145,67 @@ maskTemp:  .res 5
 				jsr tileLocationInternal
 
 				pla ; tile value
-				jsr _drawTile
+				jsr _drawTile ; uses ptr1
 			next_col:
 				inc tileIndex
 				inc tileCol 
-				lda tileCol
 				ldx tileLvl 
-				cmp _layerSize,X ; layerSize[level].x: layer width
+				lda tileCol
+				cmp _layerRowBytes,X ; _layerRowBytes[level]: layer width
 				bne loop_col 
 		next_row:
 			inc tileRow
 			lda tileRow 
 			ldx tileLvl 
-			cmp _layerSize+1,X ; layerSize[level].y: layer height
+			cmp _layerHeight,X ; _layerHeight[level]: layer height
 			bne loop_row
 	next_level:
 		lda tileLvl 
 		clc 
-		adc #2
+		adc #1
 		sta tileLvl 
-		cmp #10
+		cmp #5
 		bne loop_level 
-
 	rts
+
+	isTileVisible:
+		lda tileLvl 
+		cmp #3 ; if level >= 3: always visible
+		bcs return_true
+
+		lda tileCol 
+		beq return_true ; left-middle endcap is col 0 and always visible
+		cmp #13
+		beq return_true ; right-middle endcap is col 13 and always visible
+
+		lda tileIndex	; check tile to east
+		clc
+		adc #1
+		tay 
+		lda (layer),Y 
+		beq return_true ; if tile to right is empty: this tile is visible
+
+		ldx tileLvl 	; check tile to south
+		lda _layerRowBytes,x 
+		adc tileIndex 
+		tay 
+		lda (layer),Y 
+		beq return_true ; if tile to bottom is empty: this tile is visible
+
+		; check tile on upper layer
+
+		; upperRow = tileRow - 1
+
+		; upperCol = tileCol; if tileLvl == 0: upperCol -= 3 
+
+		; upperIndex = upperRow * layerRowBytes[level+1] + upperCol
+
+
+
+
+		return_true:
+			lda #1 ; true
+			rts	
 .endproc 
 
 ; void tileLocation(uint8_t level, uint8_t row, uint8_t col);
@@ -180,7 +222,6 @@ maskTemp:  .res 5
 
 	level = OLDCOL+1
 		jsr popa 
-		asl a
 		sta level 
 
 	jmp tileLocationInternal
@@ -194,12 +235,27 @@ maskTemp:  .res 5
 	; returns location in pixels in ROWCRS, COLCRS
 
 	.rodata 
-	mul10table: .byte 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160
+	mul10table: 
+		.byte 0, 10, 20, 30, 40, 50, 60, 70, 80, 90
+		.byte 100, 110, 120, 130, 140, 150, 160
+	layerOffsetX:
+		.byte 70
+		.byte 42
+		.byte 44
+		.byte 46
+		.byte 12
+	layerOffsetY:
+		.byte 90
+		.byte 74
+		.byte 58
+		.byte 42
+		.byte 35
+
 	.code
 
 	tileCol = OLDCOL 
 	tileRow = OLDROW
-	tileLvl = OLDCOL+1 ; tileLvl = level * 2
+	tileLvl = OLDCOL+1
 
 	; col = tileCol * 10 + boardCenter.x
 	ldx tileCol 
@@ -218,15 +274,14 @@ maskTemp:  .res 5
 
 	; offset = layerPixelOffset[level]
 	ldx tileLvl
-
 	lda COLCRS
 	sec
-	sbc layerPixelOffset,X 	; col -= offset.x
+	sbc layerOffsetX,X 	; col -= offset.x
 	sta COLCRS 
 
 	lda ROWCRS
 	sec
-	sbc layerPixelOffset+1,X	; row -= offset.y
+	sbc layerOffsetY,X	; row -= offset.y
 	sta ROWCRS 
 
 	; Special case for layer 0 far left and far right tiles
@@ -275,7 +330,6 @@ maskTemp:  .res 5
 	; on entry: ROWCRS=y, COLCRS=x
 	.importzp ptr1
 	.import tileset
-	.import _setSavadrToCursor
 
 	tileFace = ptr1 
 		sec  			; tile = (tile - 1) / 4 * 32
@@ -480,7 +534,7 @@ maskTemp:  .res 5
 
 .export _getCursorAddr
 .proc _getCursorAddr
-	; result is in AX and SAVADR
+	; result is in SAVADR
 	.import _fontPage
 
 	.rodata
@@ -527,21 +581,5 @@ maskTemp:  .res 5
 		inc SAVADR+1
 	skip_msb1:
 
-	lda SAVADR 
-	ldx SAVADR+1
-	rts 
-.endproc 
-
-
-; Unused?
-.proc copyMemory 
-	; on entry: Y = length, ptr2 = src, ptr1 = dest
-	.importzp ptr1, ptr2 
-	loop:
-		dey 
-		lda (ptr2),Y 
-		sta (ptr1),Y 
-		cpy #0
-		bne loop 
 	rts 
 .endproc 

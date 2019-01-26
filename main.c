@@ -41,9 +41,9 @@ uint8_t isQuitting;
 uint8_t isInDialog;
 
 uint8_t tilesLevel0[14*8];
-uint8_t tilesLevel1[8*6];
-uint8_t tilesLevel2[6*4];
-uint8_t tilesLevel3[4*2];
+uint8_t tilesLevel1[8*6]; // Using fixed width arrays for faster access
+uint8_t tilesLevel2[8*4];
+uint8_t tilesLevel3[8*2];
 uint8_t tileApex;
 
 uint8_t *tileLayers[5] = {
@@ -78,23 +78,20 @@ const char * tileNames[9] = {
 	"Flower"
 };
 
-// Position offsets from center for each tile layer
-const point_t layerOffset[5] = {
-	{ 14, 9 }, 
-	{  8, 8 }, 
-	{  6, 7 },
-	{  4, 6 }, 
-	{  1, 6 }
+// Number of tiles to offset each layer
+const point_t layerTileOffset[4] = {
+	{ 0, 0 }, 
+	{ 3, 1 }, 
+	{ 4, 2 },
+	{ 5, 3 } // apex tile is handled separately
 };
 
 // Layer dimensions
-const point_t layerSize[5] = {
-	{ 14, 8 },
-	{  8, 6 },
-	{  6, 4 },
-	{  4, 2 },
-	{  1, 1 }
-};
+#define layer0Width (14)
+const uint8_t layerRowBytes[5] = { layer0Width, 8, 8, 8, 1 };
+const uint8_t layerRowStart[5] = { 0, 1, 2, 3, 0 };
+const uint8_t layerRowEnd[5]   = { 0, 7, 6, 5, 1 };
+const uint8_t layerHeight[5]   = { 8, 6, 4, 2, 1 };
 
 const uint8_t level0RowStart[] = { 1, 3, 2, 0, 1, 2, 3, 1 };
 const uint8_t level0RowEnd[] = { 13, 11, 12, 13, 14, 12, 11, 13 };
@@ -218,7 +215,6 @@ static void getShuffledTiles(uint8_t *outArray) {
 
 static void startNewGame(void) {
 	uint8_t level, row, col;
-	uint8_t height, width;
 	uint8_t *layer;
 	uint8_t layerIndex;
 	uint8_t sortedTiles[144];
@@ -230,13 +226,11 @@ static void startNewGame(void) {
 	getShuffledTiles(sortedTiles);
 
 	// Place tiles in regular positions, skipping ends of rows.
-	for (level=0; level<5; ++level) {
+	for (level=0; level<4; ++level) {
 		layer = tileLayers[level];
-		height = layerSize[level].y;
-		width = layerSize[level].x;
-		for (row=0; row<height; ++row) {
-			for (col=0; col<width; ++col) {
-				layerIndex = row * width + col;
+		for (row=0; row<layerHeight[level]; ++row) {
+			for (col=0; col<layerRowBytes[level]; ++col) {
+				layerIndex = row * layerRowBytes[level] + col;
 				layer[layerIndex] = 0;
 
 				if (level == 0) {
@@ -244,7 +238,7 @@ static void startNewGame(void) {
 						continue;
 					}
 				} else if (level < 4) {
-					if (col == 0 || col >= width-1) {
+					if (col < layerRowStart[level] || col >= layerRowEnd[level]) {
 						continue;
 					}
 				}
@@ -253,6 +247,9 @@ static void startNewGame(void) {
 			}
 		}
 	}
+
+	// Add tile apex
+	tileApex = sortedTiles[tileIndex++];
 
 	// Add special right-middle endcap
 	tilesLevel0[middleRightTile1Index] = sortedTiles[tileIndex++];
@@ -275,7 +272,7 @@ static uint8_t pointInRect(uint8_t ptx, uint8_t pty, uint8_t rx, uint8_t ry, uin
 
 static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 	int8_t level, row, col;
-	int8_t layerWidth, layerHeight;
+	int8_t layerWidth;
 	uint8_t tile;
 	uint8_t *layer;
 	point_t loc;
@@ -283,13 +280,26 @@ static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 	// Set outTile to none
 	outTile->value = 0;
 
-	// Search from top layer to bottom layer, front to back.
-	for (level=4; level>=0; --level) {
-		layer = tileLayers[level];
-		layerWidth = layerSize[level].x;
-		layerHeight = layerSize[level].y;
+	// Check apex tile
+	if (tileApex) {
+		tileLocation(4, 0, 0);
+		loc.x = COLCRS_value;
+		loc.y = ROWCRS_value;
+		if (pointInRect(x, y, loc.x+2, loc.y, 13, 26)) {
+			outTile->value = tileApex;
+			outTile->x = 0;
+			outTile->y = 0;
+			outTile->level = 4;
+		}
+		return;
+	}
 
-		for (row=layerHeight-1; row>=0; --row) {
+	// Search from top layer to bottom layer, front to back.
+	for (level=3; level>=0; --level) {
+		layer = tileLayers[level];
+		layerWidth = layerRowBytes[level];
+
+		for (row=layerHeight[level]-1; row>=0; --row) {
 			for (col=layerWidth-1; col>=0; --col) {
 				tile = layer[col + row * layerWidth];
 				if (tile) {
@@ -334,14 +344,14 @@ static uint8_t isTileFree(TileSpecifier *tile) {
 			if (y == 3 || y == 4) {
 				// Tiles blocked by left-middle endcap tile.
 				left = tilesLevel0[middleLeftTileIndex];
-				right = tilesLevel0[y * layerSize[level].x + x + 1];
+				right = tilesLevel0[y * layer0Width + x + 1];
 				return (left && right) ? 0 : 1;
 			}
 		}
 		if (x == 12) {
 			if (y == 3 || y == 4) {
 				// Tiles blocked by right-middle endcap tiles.
-				left = tilesLevel0[y * layerSize[level].x + x - 1];
+				left = tilesLevel0[y * layer0Width + x - 1];
 				right = tilesLevel0[middleRightTile0Index];
 				return (left && right) ? 0 : 1;
 			}
@@ -349,7 +359,7 @@ static uint8_t isTileFree(TileSpecifier *tile) {
 		if (x == 13) {
 			if (y == 4) {
 				// Second-to-last right-middle tile is free if the last right-middle tile is removed, or if the 2 tiles to its left are both removed.
-				left = tilesLevel0[3 * layerSize[level].x + 12] || tilesLevel0[4 * layerSize[level].x + 12];
+				left = tilesLevel0[3 * layer0Width + 12] || tilesLevel0[4 * layer0Width + 12];
 				right = tilesLevel0[middleRightTile1Index];
 				return  (left && right) ? 0 : 1;
 			}
@@ -363,26 +373,25 @@ static uint8_t isTileFree(TileSpecifier *tile) {
 	{
 		const uint8_t *upperLayer = tileLayers[level+1];
 		const uint8_t *sameLayer = tileLayers[level];
-		point_t upperLayerSize;
-		uint8_t upperX, upperY;
+		uint8_t upperY = y - 1; // Layer above is always offset by 1 row
+		uint8_t upperX = x;
 
-		upperLayerSize = layerSize[level+1];
-
-		upperX = x - (layerOffset[level].x - layerOffset[level+1].x) / 2;
-		upperY = y - (layerOffset[level].y - layerOffset[level+1].y);
-		
+		if (level > 0) { // Layers above 0 all start at same x-origin.
+			upperX -= 3; // Layer 0 starts 3 tiles to left of layers above it.
+		}
+	
 		// First check tile above
-		if (upperX < upperLayerSize.x && upperY < upperLayerSize.y) {
-			if (upperLayer[upperX + upperY * upperLayerSize.x]) {
+		if (upperX < layerRowBytes[level+1] && upperY < layerHeight[level+1]) {
+			if (upperLayer[upperX + upperY * 8]) {
 				return 0;
 			}
 		}
 
 		// Second check left and right
-		if (sameLayer[y * layerSize[level].x + x - 1] == 0) {
+		if (sameLayer[y * layerRowBytes[level] + x - 1] == 0) {
 			return 1;
 		}
-		if (sameLayer[y * layerSize[level].x + x + 1] == 0) {
+		if (sameLayer[y * layerRowBytes[level] + x + 1] == 0) {
 			return 1;
 		}
 	}
@@ -428,7 +437,7 @@ static void printTileInfo(TileSpecifier *tile) {
 
 static void removeTile(TileSpecifier *tile) {
 	uint8_t *layer = tileLayers[tile->level];
-	layer[tile->y * layerSize[tile->level].x + tile->x] = 0;
+	layer[tile->y * layerRowBytes[tile->level] + tile->x] = 0;
 
 	// Add move for undo
 	if (movesIndex < MaxMoves) {
@@ -448,22 +457,17 @@ static void undoRemoveTile(void) {
 		movesIndex -= 1;
 		tile = &moves[movesIndex];
 		layer = tileLayers[tile->level];
-		layer[tile->y * layerSize[tile->level].x + tile->x] = tile->value;
+		layer[tile->y * layerRowBytes[tile->level] + tile->x] = tile->value;
 	}
 }
 
 static void restartGame(void) {
 	// Undo all mvoes
-	TileSpecifier *tile;
-	uint8_t *layer;
 
 	selectTile(NULL); // Deselect All
 
 	while (movesIndex > 0) {
-		movesIndex -= 1;
-		tile = &moves[movesIndex];
-		layer = tileLayers[tile->level];
-		layer[tile->y * layerSize[tile->level].x + tile->x] = tile->value;
+		undoRemoveTile();
 	}	
 	drawTileBoardTimed();
 }
