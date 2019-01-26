@@ -275,7 +275,6 @@ static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 	int8_t layerWidth;
 	uint8_t tile;
 	uint8_t *layer;
-	point_t loc;
 
 	// Set outTile to none
 	outTile->value = 0;
@@ -283,15 +282,13 @@ static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 	// Check apex tile
 	if (tileApex) {
 		tileLocation(4, 0, 0);
-		loc.x = COLCRS_value;
-		loc.y = ROWCRS_value;
-		if (pointInRect(x, y, loc.x+2, loc.y, 13, 26)) {
+		if (pointInRect(x, y, COLCRS_value+2, ROWCRS_value, 13, 26)) {
 			outTile->value = tileApex;
 			outTile->x = 0;
 			outTile->y = 0;
 			outTile->level = 4;
+			return;
 		}
-		return;
 	}
 
 	// Search from top layer to bottom layer, front to back.
@@ -304,9 +301,7 @@ static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 				tile = layer[col + row * layerWidth];
 				if (tile) {
 					tileLocation(level, row, col);
-					loc.x = COLCRS_value;
-					loc.y = ROWCRS_value;
-					if (pointInRect(x, y, loc.x+2, loc.y, 13, 26)) {
+					if (pointInRect(x, y, COLCRS_value+2, ROWCRS_value, 13, 26)) {
 						outTile->value = tile;
 						outTile->x = col;
 						outTile->y = row;
@@ -376,7 +371,7 @@ static uint8_t isTileFree(TileSpecifier *tile) {
 		uint8_t upperY = y - 1; // Layer above is always offset by 1 row
 		uint8_t upperX = x;
 
-		if (level > 0) { // Layers above 0 all start at same x-origin.
+		if (level == 0) { // Layers above 0 all start at same x-origin.
 			upperX -= 3; // Layer 0 starts 3 tiles to left of layers above it.
 		}
 	
