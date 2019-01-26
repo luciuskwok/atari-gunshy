@@ -80,9 +80,12 @@ boardCenterX: .byte 72
 boardCenterY: .byte 92
 
 .segment "EXTZP": zeropage
-imageTemp: .res 5
-maskTemp:  .res 5
-
+imageTemp:  .res 5
+maskTemp:   .res 5
+clipTop:    .res 1
+clipBottom: .res 1
+clipLeft:   .res 1
+clipRight:  .res 1
 .code 
 
 ; void drawTileBoard(void);
@@ -102,6 +105,14 @@ maskTemp:  .res 5
 	ldy #7*4
 	lda #$FF 
 	jsr fillMemoryPages
+
+	; Reset clip
+	lda #0
+	sta clipLeft
+	sta clipTop
+	lda #$FF
+	sta clipRight
+	sta clipBottom
 
 	tileRow = OLDROW 
 	tileCol = OLDCOL
@@ -228,21 +239,28 @@ maskTemp:  .res 5
 			rts	
 .endproc 
 
-; void tileLocation(uint8_t level, uint8_t row, uint8_t col);
+; void tileLocation(TileSpecifier *tile);
 .export _tileLocation
 .proc _tileLocation
-	.import popa 
-
-	col = OLDCOL
-		sta col 
+	.importzp ptr1
+	tile = ptr1
+		sta ptr1
+		stx ptr1+1
 
 	row = OLDROW
-		jsr popa 
-		sta row 
+		ldy #3
+		lda (tile),y
+		sta row
+
+	col = OLDCOL
+		ldy #2
+		lda (tile),y
+		sta col
 
 	level = OLDCOL+1
-		jsr popa 
-		sta level 
+		ldy #1
+		lda (tile),y
+		sta level
 
 	jmp tileLocationInternal
 .endproc 
@@ -344,7 +362,6 @@ maskTemp:  .res 5
 	rts 
 .endproc 
 
-
 .export _drawTile
 .proc _drawTile
 	; on entry: ROWCRS=y, COLCRS=x
@@ -375,10 +392,21 @@ maskTemp:  .res 5
 	asl a 
 	sta SHFAMT 
 
+	lda COLCRS  ; COLINC: byte column for use with clipLeft and clipRight
+	lsr a 
+	lsr a 
+	sta COLINC 
+
 	; Draw blank tile
 	lda #0
 	sta ROWINC
 	loop_line:
+		lda ROWCRS 
+		cmp clipTop 			; if rowcrs < clipTop: next row
+		bcc next_row
+		cmp clipBottom 			; if rowcrs >= clipBottom: next row
+		bcs next_row
+
 		jsr _getCursorAddr 
 
 		lda ROWINC 				; Output 2 lines for each 1 line in source
@@ -451,7 +479,7 @@ maskTemp:  .res 5
 		ora imageTemp+4	 	; 4
 		sta (SAVADR),Y		; 6 
 
-		next_line:
+		next_row:
 			inc ROWCRS
 
 			ldx ROWINC
@@ -603,3 +631,11 @@ maskTemp:  .res 5
 
 	rts 
 .endproc 
+
+; void redrawTileBounds(TileSpecifier *tile);
+.export _redrawTileBounds
+.proc _redrawTileBounds
+	; Redraw only the rectangle bounded by tile
+	jsr _tileLocation
+	rts 
+.endproc

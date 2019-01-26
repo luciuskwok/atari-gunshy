@@ -20,14 +20,6 @@ void zeroOutMemory(uint8_t *ptr, uint16_t length);
 extern uint8_t pointerHasMoved;
 extern point_t mouseLocation;
 
-// tile.asm stuff
-void drawTileBoard(void);
-void tileLocation(uint8_t level, uint8_t row, uint8_t col);
-void drawTile(void);
-uint8_t* getCursorAddr(void);
-void doBitShift(void);
-void getTileMaskAtRow(void);
-
 // Typedef
 typedef struct TileSpecifier {
 	uint8_t value;
@@ -35,6 +27,15 @@ typedef struct TileSpecifier {
 	uint8_t x;
 	uint8_t y;
 } TileSpecifier;
+
+// tile.asm stuff
+void drawTileBoard(void);
+void tileLocation(TileSpecifier *tile);
+void drawTile(void);
+uint8_t* getCursorAddr(void);
+void doBitShift(void);
+void getTileMaskAtRow(void);
+void redrawTileBounds(TileSpecifier *tile);
 
 // Globals
 uint8_t isQuitting;
@@ -180,13 +181,9 @@ static void debugLocation(uint8_t x, uint16_t y) {
 }
 
 static void selectTile(TileSpecifier *tile) {
-	point_t loc;
-
 	if (tile) {
-		tileLocation(tile->level, tile->y, tile->x);
-		loc.x = COLCRS_value;
-		loc.y = ROWCRS_value;
-		setSelectionLocation(loc.x + 2, loc.y);
+		tileLocation(tile);
+		setSelectionLocation(COLCRS_value + 2, ROWCRS_value);
 
 		firstTileSelected.value = tile->value;
 		firstTileSelected.x = tile->x;
@@ -273,7 +270,7 @@ static uint8_t pointInRect(uint8_t ptx, uint8_t pty, uint8_t rx, uint8_t ry, uin
 static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 	int8_t level, row, col;
 	int8_t layerWidth;
-	uint8_t tile;
+	uint8_t tileValue;
 	uint8_t *layer;
 
 	// Set outTile to none
@@ -281,31 +278,31 @@ static void getTileHit(TileSpecifier *outTile, uint8_t x, uint8_t y) {
 
 	// Check apex tile
 	if (tileApex) {
-		tileLocation(4, 0, 0);
+		outTile->x = 0;
+		outTile->y = 0;
+		outTile->level = 4;
+		tileLocation(outTile);
 		if (pointInRect(x, y, COLCRS_value+2, ROWCRS_value, 13, 26)) {
 			outTile->value = tileApex;
-			outTile->x = 0;
-			outTile->y = 0;
-			outTile->level = 4;
 			return;
 		}
 	}
 
 	// Search from top layer to bottom layer, front to back.
 	for (level=3; level>=0; --level) {
+		outTile->level = level;
 		layer = tileLayers[level];
 		layerWidth = layerRowBytes[level];
 
 		for (row=layerHeight[level]-1; row>=0; --row) {
+			outTile->y = row;
 			for (col=layerWidth-1; col>=0; --col) {
-				tile = layer[col + row * layerWidth];
-				if (tile) {
-					tileLocation(level, row, col);
+				outTile->x = col;
+				tileValue = layer[col + row * layerWidth];
+				if (tileValue) {
+					tileLocation(outTile);
 					if (pointInRect(x, y, COLCRS_value+2, ROWCRS_value, 13, 26)) {
-						outTile->value = tile;
-						outTile->x = col;
-						outTile->y = row;
-						outTile->level = level;
+						outTile->value = tileValue;
 						return;
 					}
 				}
@@ -442,9 +439,12 @@ static void removeTile(TileSpecifier *tile) {
 		moves[movesIndex].level = tile->level;
 		movesIndex += 1;
 	}
+
+	// Redraw hole left by tile
+	redrawTileBounds(tile);
 }
 
-static void undoRemoveTile(void) {
+static void undoRemoveTile(uint8_t redraw) {
 	TileSpecifier *tile;
 	uint8_t *layer;
 
@@ -453,6 +453,9 @@ static void undoRemoveTile(void) {
 		tile = &moves[movesIndex];
 		layer = tileLayers[tile->level];
 		layer[tile->y * layerRowBytes[tile->level] + tile->x] = tile->value;
+		if (redraw) {
+			redrawTileBounds(tile);
+		}
 	}
 }
 
@@ -462,7 +465,7 @@ static void restartGame(void) {
 	selectTile(NULL); // Deselect All
 
 	while (movesIndex > 0) {
-		undoRemoveTile();
+		undoRemoveTile(0);
 	}	
 	drawTileBoardTimed();
 }
@@ -502,11 +505,11 @@ static void handleKeyboard(void) {
 		if (key == KEY_DELETE || key == KEY_U) {
 			// Put last 2 tiles back.
 			if (movesIndex > 0) {
-				undoRemoveTile();
-				undoRemoveTile();
+				undoRemoveTile(1);
+				undoRemoveTile(1);
 				printStatusLine("Move undone");
 				printTilesLeft();
-				drawTileBoard();
+				//drawTileBoard();
 			}
 		} else if (key == KEY_N) {
 			showNewGameConfirmation();
@@ -522,7 +525,6 @@ static void mouseDown(void) {
 	uint8_t x = mouseLocation.x - PMLeftMargin;
 	uint8_t y = (mouseLocation.y - PMTopMargin) * 2;
 	uint8_t shouldDeselect = 1;
-	uint8_t shouldRedraw = 0;
 	TileSpecifier tileHit;
 
 	if (isInDialog) {
@@ -546,7 +548,6 @@ static void mouseDown(void) {
 				}
 				printTilesLeft();
 				shouldDeselect = 1;
-				shouldRedraw = 1;
 			} else {
 				// Change the selection to the selected tile, if tile is free.
 				printTileInfo(&tileHit);
@@ -571,9 +572,6 @@ static void mouseDown(void) {
 
 	if (firstTileSelected.value && shouldDeselect) {
 		selectTile(NULL);
-	}
-	if (shouldRedraw) {
-		drawTileBoardTimed();
 	}
 }
 
