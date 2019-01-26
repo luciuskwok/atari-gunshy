@@ -77,7 +77,7 @@ tileMaskShift6:
 
 
 boardCenterX: .byte 72
-boardCenterY: .byte 90
+boardCenterY: .byte 92
 
 .segment "EXTZP": zeropage
 imageTemp: .res 5
