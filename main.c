@@ -29,12 +29,8 @@ typedef struct TileSpecifier {
 } TileSpecifier;
 
 // tile.asm stuff
-void drawTileBoard(void);
+void drawAllTiles(void);
 void tileLocation(TileSpecifier *tile);
-void drawTile(void);
-uint8_t* getCursorAddr(void);
-void doBitShift(void);
-void getTileMaskAtRow(void);
 void redrawTileBounds(TileSpecifier *tile);
 
 // Globals
@@ -105,24 +101,17 @@ const uint8_t level0RowEnd[] = { 13, 11, 12, 13, 14, 12, 11, 13 };
 
 
 static void drawTileBoardTimed(void) {
-    uint16_t startTime = Clock16;
-    
-    drawTileBoard();
+	uint16_t startTime = Clock16;
+	
+	drawAllTiles();
 
-    // Print duration
-    {
-        char s[6];
-        uint8_t len = uint16String(s, Clock16 - startTime);
-        printStringAtXY("     ", 35, 22);
-        printStringAtXY(s, 40-len, 22);
-    }  
-
-    // Force export of certain symbols
-    startTime = (int)drawTile;
-    startTime = (int)tileLocation;
-    startTime = (int)getCursorAddr;
-    startTime = (int)doBitShift;
-	startTime = (int)getTileMaskAtRow;
+	// Print duration
+	{
+		char s[6];
+		uint8_t len = uint16String(s, Clock16 - startTime);
+		printStringAtXY("     ", 35, 22);
+		printStringAtXY(s, 40-len, 22);
+	}  
 }
 
 static void printCommand(const char *key, const char *title) {
@@ -522,6 +511,7 @@ static void handleKeyboard(void) {
 }
 
 static void mouseDown(void) {
+	uint16_t startTime = Clock16; // Timing
 	uint8_t x = mouseLocation.x - PMLeftMargin;
 	uint8_t y = (mouseLocation.y - PMTopMargin) * 2;
 	uint8_t shouldDeselect = 1;
@@ -542,7 +532,7 @@ static void mouseDown(void) {
 				removeTile(&firstTileSelected);
 				removeTile(&tileHit);
 				if (movesIndex < MaxMoves) {
-					printStatusLine("Match removed");
+					printStatusLine("Pair removed");
 				} else {
 					printStatusLine("Congratulations!");
 				}
@@ -573,6 +563,14 @@ static void mouseDown(void) {
 	if (firstTileSelected.value && shouldDeselect) {
 		selectTile(NULL);
 	}
+
+	// Print duration
+	{
+		char s[6];
+		uint8_t len = uint16String(s, Clock16 - startTime);
+		printStringAtXY("     ", 35, 22);
+		printStringAtXY(s, 40-len, 22);
+	}  
 }
 
 static void handleTrigger(void) {

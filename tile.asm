@@ -13,6 +13,7 @@ blankTile:
 	.byte $00,$00,$00,$00
 	blankTileHeight = 13 	; lines
 	blankTileLength = blankTileHeight*4 
+	blankTileWidth  = 13
 
 tileMaskShift0:
 	.byte $C0,$00,$03,$FF
@@ -88,16 +89,10 @@ clipLeft:   .res 1
 clipRight:  .res 1
 .code 
 
-; void drawTileBoard(void);
-.export _drawTileBoard
-.proc _drawTileBoard
-	.importzp ptr2, ptr3
-	.importzp tmp2, tmp3
+; void drawAllTiles(void);
+.export _drawAllTiles
+.proc _drawAllTiles
 	.import fillMemoryPages
-	.import _tileLayers
-	.import _tileApex
-	.import _layerRowBytes
-	.import _layerHeight
 	.import _fontPage
 
 	; Fill the screen with $FF
@@ -106,13 +101,25 @@ clipRight:  .res 1
 	lda #$FF 
 	jsr fillMemoryPages
 
-	; Reset clip
+	; Clear clip
 	lda #0
 	sta clipLeft
 	sta clipTop
-	lda #$FF
+	lda #$FF 
 	sta clipRight
 	sta clipBottom
+
+	jsr drawTileBoard
+	rts
+.endproc
+
+.proc drawTileBoard
+	.importzp ptr2, ptr3
+	.importzp tmp2, tmp3
+	.import _tileLayers
+	.import _tileApex
+	.import _layerRowBytes
+	.import _layerHeight
 
 	tileRow = OLDROW 
 	tileCol = OLDCOL
@@ -152,11 +159,14 @@ clipRight:  .res 1
 				lda (layer),Y 
 				beq next_col
 
-				pha ; tile value
+				sta TMPCHR ; tile value
 				jsr tileLocationInternal
 
-				pla ; tile value
-				jsr _drawTile ; uses ptr1
+				jsr doesTileIntersectClip
+				beq next_col
+
+				lda TMPCHR ; tile value
+				jsr drawTile ; uses ptr1
 			next_col:
 				inc tileIndex
 				inc tileCol 
@@ -231,12 +241,37 @@ clipRight:  .res 1
 		lda (upperLayer),y ; if upperLayer[upperIndex] == 0: visible = true
 		beq return_true
 
+	return_false: ; shared with code above and below
 		lda #0 ; false, not visible
 		rts 
+	return_true:
+		lda #1 ; true, visible
+		rts	
 
-		return_true:
-			lda #1 ; true, visible
-			rts	
+	doesTileIntersectClip:
+		lda clipBottom 		; if clip is not set: always draw
+		cmp #$FF
+		beq return_true
+
+		lda ROWCRS
+		cmp clipBottom 		; if rowcrs >= clipBottom
+		bcs return_false
+		clc
+		adc #blankTileHeight*2
+		cmp clipTop 		; if rowcrs + tileHeight < clipTop
+		bcc return_false
+
+		lda COLCRS 
+		lsr a 
+		lsr a
+		cmp clipRight
+		bcs return_false
+		clc 
+		adc #5
+		cmp clipLeft
+		bcc return_false
+
+		jmp return_true
 .endproc 
 
 ; void tileLocation(TileSpecifier *tile);
@@ -362,28 +397,31 @@ clipRight:  .res 1
 	rts 
 .endproc 
 
-.export _drawTile
-.proc _drawTile
+.proc drawTile
 	; on entry: ROWCRS=y, COLCRS=x
 	.importzp ptr1
 	.import tileset
 
+	.rodata 
+	tileFaceTable:
+		.word $0000, $0020, $0040, $0060, $0080, $00A0, $00C0, $00E0
+		.word $0100, $0120, $0140, $0160, $0180, $01A0, $01C0, $01E0
+		.word $0200, $0220, $0240, $0260, $0280, $02A0, $02C0, $02E0
+		.word $0300, $0320, $0340, $0360, $0380, $03A0, $03C0, $03E0
+		.word $0400, $0420, $0440, $0460, $0480, $04A0, $04C0, $04E0
+	.code
+
 	tileFace = ptr1 
-		sec  			; tile = (tile - 1) / 4 * 32
+		sec  			; tile = (tile - 1) / 4 * 2
 		sbc #1 
-		and #$FC
-		ldx #0
-		stx tileFace+1
-		asl a 
-		rol tileFace+1
-		asl a 
-		rol tileFace+1
-		asl a 
-		rol tileFace+1
-		clc 
+		lsr a
+		and #$FE
+		tax 
+		clc
+		lda tileFaceTable,x  ; tileFace = tileFaceTable[x] + tileset
 		adc #<tileset
-		sta tileFace 
-		lda tileFace+1
+		sta tileFace
+		lda tileFaceTable+1,x
 		adc #>tileset 
 		sta tileFace+1
 
@@ -392,61 +430,92 @@ clipRight:  .res 1
 	asl a 
 	sta SHFAMT 
 
-	lda COLCRS  ; COLINC: byte column for use with clipLeft and clipRight
-	lsr a 
-	lsr a 
-	sta COLINC 
-
 	; Draw blank tile
 	lda #0
 	sta ROWINC
-	loop_line:
+	
+	loop_row:
+		lda clipBottom
+		cmp #$FF
+		bne draw_row_with_clip
+		jmp draw_row_no_clip
+	next_row:
+		inc ROWCRS
+		ldx ROWINC
+		inx 
+		stx ROWINC 
+		cpx #blankTileHeight*2
+		bcc loop_row
+	return:
+		rts 
+
+	draw_row_with_clip:
 		lda ROWCRS 
 		cmp clipTop 			; if rowcrs < clipTop: next row
 		bcc next_row
 		cmp clipBottom 			; if rowcrs >= clipBottom: next row
 		bcs next_row
 
-		jsr _getCursorAddr 
+		jsr getTileImageAndMask
+		jsr getCursorAddr 
 
-		lda ROWINC 				; Output 2 lines for each 1 line in source
-		and #$FE
-		asl a 					; X steps by 4, ROWINC steps by 1
-		tax 
+		lda COLCRS
+		lsr a 
+		lsr a 
+		tax 				; x = column index for clip
 
-		jsr _getTileMaskAtRow	; Get mask
+		; Apply mask and image to 5 columns in unrolled loop
+		ldy #0
+		lda (SAVADR),Y 		; 5+1
+		and maskTemp 		; 4
+		ora imageTemp	 	; 4
+		sta (SAVADR),Y		; 6 
 
-		lda blankTile,X		; Get image
-		sta imageTemp 
-		lda blankTile+3,X
-		sta imageTemp+3
-		lda #0
-		sta imageTemp+4 
+		inx
+		cpx clipRight
+		bcs next_row
 
-		cpx #2*4
-		bcc outside_part 
-		cpx #9*4
-		bcs outside_part 
-		inside_part:
-			lda ROWINC
-			sec 
-			sbc #4
-			asl a 
-			tay 
-			lda (tileFace),Y 
-			sta imageTemp+1
-			iny 
-			lda (tileFace),Y 
-			sta imageTemp+2
-			jmp end_outside_part 
-		outside_part:
-			lda blankTile+1,X	; Lines above or below face of tile
-			sta imageTemp+1
-			lda blankTile+2,X
-			sta imageTemp+2
-		end_outside_part:
+		ldy #8
+		lda (SAVADR),Y 		; 5+1
+		and maskTemp+1 		; 4
+		ora imageTemp+1	 	; 4
+		sta (SAVADR),Y		; 6 
 
-		jsr _doBitShift
+		inx
+		cpx clipRight
+		bcs next_row
+
+		ldy #16
+		lda (SAVADR),Y 		; 5+1
+		and maskTemp+2 		; 4
+		ora imageTemp+2	 	; 4
+		sta (SAVADR),Y		; 6 
+
+		inx
+		cpx clipRight
+		bcs next_row
+
+		ldy #24
+		lda (SAVADR),Y 		; 5+1
+		and maskTemp+3 		; 4
+		ora imageTemp+3	 	; 4
+		sta (SAVADR),Y		; 6 
+
+		inx
+		cpx clipRight
+		bcs next_row
+
+		ldy #32
+		lda (SAVADR),Y 		; 5+1
+		and maskTemp+4 		; 4
+		ora imageTemp+4	 	; 4
+		sta (SAVADR),Y		; 6 
+
+		jmp next_row
+
+	draw_row_no_clip:
+		jsr getTileImageAndMask
+		jsr getCursorAddr 
 
 		; Apply mask and image to 5 columns in unrolled loop
 		ldy #0
@@ -479,23 +548,20 @@ clipRight:  .res 1
 		ora imageTemp+4	 	; 4
 		sta (SAVADR),Y		; 6 
 
-		next_row:
-			inc ROWCRS
-
-			ldx ROWINC
-			inx 
-			stx ROWINC 
-			cpx #blankTileHeight*2
-			bcs return
-			jmp loop_line
-
-	return:
-		rts 
+		jmp next_row
 .endproc 
 
-.export _getTileMaskAtRow
-.proc _getTileMaskAtRow
-	; sets maskTemp data, with X = row * 4, SHFAMT = bit shift
+.proc getTileImageAndMask
+	; Get maskTemp data, with ROWINC = row, SHFAMT = bit shift
+	; on entry: ptr1 = tileFace
+	; returns bit-shifted imageTemp and masktemp
+	.importzp ptr1
+	tileFace = ptr1
+
+	lda ROWINC 				; Output 2 lines for each 1 line in source
+	and #$FE
+	asl a 					; X steps by 4, ROWINC steps by 1
+	tax 
 
 	lda SHFAMT 
 	cmp #6
@@ -516,7 +582,7 @@ clipRight:  .res 1
 		sta maskTemp+3
 		lda #$FF
 		sta maskTemp+4
-		rts 
+		jmp get_image 
 	shift_2_bits:
 		lda tileMaskShift6,X
 		sta maskTemp 
@@ -528,7 +594,7 @@ clipRight:  .res 1
 		sta maskTemp+3
 		lda #$FF
 		sta maskTemp+4
-		rts 
+		jmp get_image 
 	shift_4_bits:
 		lda #$FF
 		sta maskTemp
@@ -540,7 +606,7 @@ clipRight:  .res 1
 		sta maskTemp+3
 		lda tileMaskShift0+3,X
 		sta maskTemp+4
-		rts 
+		jmp get_image 
 	shift_6_bits:
 		lda #$FF
 		sta maskTemp
@@ -552,22 +618,41 @@ clipRight:  .res 1
 		sta maskTemp+3
 		lda tileMaskShift2+3,X
 		sta maskTemp+4
-		rts 
-.endproc
+		jmp get_image 
 
-.export _doBitShift
-.proc _doBitShift
-	; on entry: shiftArea has bits to shift, SHFAMT the number of times to shift right
-	.rodata 
-	shift2RightA:
+	get_image:
+		lda blankTile,X		; Get image
+		sta imageTemp 
+		lda blankTile+3,X
+		sta imageTemp+3
+		lda #0
+		sta imageTemp+4 
 
-	shift2RightB:
+		cpx #2*4
+		bcc outside_part 
+		cpx #9*4
+		bcs outside_part 
+	inside_part:
+		lda ROWINC
+		sec 
+		sbc #4
+		asl a 
+		tay 
+		lda (tileFace),Y 
+		sta imageTemp+1
+		iny 
+		lda (tileFace),Y 
+		sta imageTemp+2
+		jmp bit_shift 
+	outside_part:
+		lda blankTile+1,X	; Lines above or below face of tile
+		sta imageTemp+1
+		lda blankTile+2,X
+		sta imageTemp+2
 
-
-	.code 
-
-	ldy SHFAMT 
-	jmp next_shift
+	bit_shift:
+		ldy SHFAMT 
+		jmp next_shift
 	loop_shift:
 		lsr imageTemp 	; 6
 		ror imageTemp+1	; 6
@@ -578,10 +663,10 @@ clipRight:  .res 1
 	next_shift:
 		bne loop_shift 
 	rts
-.endproc 
+.endproc
 
-.export _getCursorAddr
-.proc _getCursorAddr
+.proc getCursorAddr
+	; on entry: ROWCRS, COLCRS set to pixel coordinates
 	; result is in SAVADR
 	.import _fontPage
 
@@ -637,5 +722,47 @@ clipRight:  .res 1
 .proc _redrawTileBounds
 	; Redraw only the rectangle bounded by tile
 	jsr _tileLocation
+
+	set_clip_rect:
+		lda ROWCRS
+		sta OLDROW
+		sta clipTop
+		clc 
+		adc #blankTileHeight*2
+		sta clipBottom
+
+		lda COLCRS 
+		sta OLDCOL
+		lsr a 
+		lsr a 
+		sta clipLeft
+		clc
+		adc #5 
+		sta clipRight
+
+		lda COLCRS
+
+	erase_clip_rect:
+		lda #blankTileHeight*2
+		sta ROWINC
+		@loop_row:
+			jsr getCursorAddr
+			ldy #0
+			@loop_col:
+				lda #$FF
+				sta (SAVADR),y
+				tya
+				clc 
+				adc #8
+				tay
+				cpy #40
+				bcc @loop_col
+			inc ROWCRS
+			dec ROWINC
+			bne @loop_row
+
+	draw_tiles:
+		jsr drawTileBoard
+
 	rts 
 .endproc
