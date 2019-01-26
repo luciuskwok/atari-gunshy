@@ -130,7 +130,7 @@ maskTemp:  .res 5
 		lda #0
 		sta tileIndex
 		sta tileRow 
-		loop_row:
+		loop_row:	
 			lda #0
 			sta tileCol 
 			loop_col:
@@ -169,8 +169,8 @@ maskTemp:  .res 5
 	rts
 
 	isTileVisible:
-		lda tileLvl 
-		cmp #3 ; if level >= 3: always visible
+		ldx tileLvl
+		cpx #3 ; if level >= 3: always visible
 		bcs return_true
 
 		lda tileCol 
@@ -185,26 +185,46 @@ maskTemp:  .res 5
 		lda (layer),Y 
 		beq return_true ; if tile to right is empty: this tile is visible
 
-		ldx tileLvl 	; check tile to south
-		lda _layerRowBytes,x 
+		lda _layerRowBytes,x ; check tile to south
 		adc tileIndex 
 		tay 
 		lda (layer),Y 
 		beq return_true ; if tile to bottom is empty: this tile is visible
 
 		; check tile on upper layer
+		inx ; x = tileLvl + 1
 
 		; upperRow = tileRow - 1
+		lda tileRow 
+		sec 
+		sbc #1
+		cmp _layerHeight,x ; if upperRow >= layerHeight: visible = true
+		bcs return_true
+		asl a 	; layers above level0 all have rowBytes == 8
+		asl a 
+		asl a
+		sta upperIndex ; upperIndex = upperRow * 8
 
-		; upperCol = tileCol; if tileLvl == 0: upperCol -= 3 
+		; upperCol += tileCol; if tileLvl == 0: upperCol -= 3 
+		lda tileCol 
+		cpx #1 ; x is already incremented at this point
+		bne skip_lvl0_shift
+			sec 
+			sbc #3
+		skip_lvl0_shift:
+		cmp _layerRowBytes,x ; if upperCol >= layerRowBytes: visible = true
+		bcs return_true
 
-		; upperIndex = upperRow * layerRowBytes[level+1] + upperCol
+		adc upperIndex ; upperIndex += upperCol
+		tay
+		lda (upperLayer),y ; if upperLayer[upperIndex] == 0: visible = true
+		beq return_true
 
-
-
+		lda #0 ; false, not visible
+		rts 
 
 		return_true:
-			lda #1 ; true
+			lda #1 ; true, visible
 			rts	
 .endproc 
 
