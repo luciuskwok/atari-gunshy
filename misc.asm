@@ -74,30 +74,22 @@
 	rts 
 .endproc
 
-.export mulax40
-.proc mulax40 
-	; 40 = %0010 1000
-	.importzp sreg
+.export mul40
+.proc mul40 
+	.rodata 
+	mul40table:
+		.word 0, 40*1, 40*2, 40*3, 40*4
+		.word 40*5, 40*6, 40*7, 40*8, 40*9
+		.word 40*10, 40*11, 40*12, 40*13, 40*14
+		.word 40*15, 40*16, 40*17, 40*18, 40*19
+		.word 40*20, 40*21, 40*22, 40*23, 40*24
+		.word 40*25, 40*26, 40*27, 40*28, 40*29
+	.code
 
-	sta sreg  		; A=LSB
-	stx sreg+1 		; X=MSB
 	asl a 
-	rol sreg+1
-	asl a
-	rol sreg+1
-	clc 
-	adc sreg 
-	sta sreg
-	txa  			; flip LSB/MSB, so A=MSB, X=LSB
-	adc sreg+1 
-	asl sreg
-	rol a
-	asl sreg 
-	rol a
-	asl sreg
-	rol a 
-	tax 
-	lda sreg 
+	tay
+	lda mul40table,y
+	ldx mul40table+1,y
 	rts 
 .endproc 
 

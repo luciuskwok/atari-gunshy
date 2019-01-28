@@ -169,6 +169,8 @@ clipRight:  .res 1
 				jsr doesTileIntersectClip
 				beq next_col
 
+				jsr setColorAttribute ; set PF2/PF3 color attribute 
+
 				lda TMPCHR ; tile value
 				jsr drawTile ; uses ptr1
 			next_col:
@@ -326,7 +328,7 @@ clipRight:  .res 1
 		.byte 74
 		.byte 58
 		.byte 42
-		.byte 35
+		.byte 34
 
 	.code
 
@@ -400,6 +402,11 @@ clipRight:  .res 1
 
 	rts 
 .endproc 
+
+.proc setColorAttribute
+	lda TMPCHR
+	rts
+.endproc
 
 .proc drawTile
 	; on entry: ROWCRS=y, COLCRS=x

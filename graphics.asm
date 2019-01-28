@@ -106,11 +106,10 @@
 .export _setSavadrToCursor
 .proc _setSavadrToCursor 
 	; Stores cursor address in SAVADR.
-	.import mulax40 ; uses sreg
+	.import mul40
 
 	lda ROWCRS 
-	ldx #0 
-	jsr mulax40			; returns result in AX
+	jsr mul40			; returns result in AX
 
 	clc 				; SAVADR = AX + TXTMSC
 	adc SAVMSC 
