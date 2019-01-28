@@ -89,9 +89,9 @@ clipLeft:   .res 1
 clipRight:  .res 1
 .code 
 
-; void drawAllTiles(void);
-.export _drawAllTiles
-.proc _drawAllTiles
+; void clearScreen(void);
+.export _clearScreen
+.proc _clearScreen
 	.import fillMemoryPages
 	.import _fontPage
 
@@ -99,8 +99,12 @@ clipRight:  .res 1
 	ldx _fontPage 
 	ldy #7*4
 	lda #$FF 
-	jsr fillMemoryPages
+	jmp fillMemoryPages
+.endproc
 
+; void drawAllTiles(void);
+.export _drawAllTiles
+.proc _drawAllTiles
 	; Clear clip
 	lda #0
 	sta clipLeft
@@ -465,51 +469,66 @@ clipRight:  .res 1
 		tax 				; x = column index for clip
 
 		; Apply mask and image to 5 columns in unrolled loop
-		ldy #0
-		lda (SAVADR),Y 		; 5+1
-		and maskTemp 		; 4
-		ora imageTemp	 	; 4
-		sta (SAVADR),Y		; 6 
+		cpx clipLeft 
+		bcc skip_col1 
+			ldy #0
+			lda (SAVADR),Y 		; 5+1
+			and maskTemp 		; 4
+			ora imageTemp	 	; 4
+			sta (SAVADR),Y		; 6 
+		skip_col1:
 
 		inx
 		cpx clipRight
 		bcs next_row
 
-		ldy #8
-		lda (SAVADR),Y 		; 5+1
-		and maskTemp+1 		; 4
-		ora imageTemp+1	 	; 4
-		sta (SAVADR),Y		; 6 
+		cpx clipLeft 
+		bcc skip_col2 
+			ldy #8
+			lda (SAVADR),Y 		; 5+1
+			and maskTemp+1 		; 4
+			ora imageTemp+1	 	; 4
+			sta (SAVADR),Y		; 6 
+		skip_col2:
 
 		inx
 		cpx clipRight
 		bcs next_row
 
-		ldy #16
-		lda (SAVADR),Y 		; 5+1
-		and maskTemp+2 		; 4
-		ora imageTemp+2	 	; 4
-		sta (SAVADR),Y		; 6 
+		cpx clipLeft 
+		bcc skip_col3 
+			ldy #16
+			lda (SAVADR),Y 		; 5+1
+			and maskTemp+2 		; 4
+			ora imageTemp+2	 	; 4
+			sta (SAVADR),Y		; 6 
+		skip_col3:
 
 		inx
 		cpx clipRight
 		bcs next_row
 
-		ldy #24
-		lda (SAVADR),Y 		; 5+1
-		and maskTemp+3 		; 4
-		ora imageTemp+3	 	; 4
-		sta (SAVADR),Y		; 6 
+		cpx clipLeft 
+		bcc skip_col4 
+			ldy #24
+			lda (SAVADR),Y 		; 5+1
+			and maskTemp+3 		; 4
+			ora imageTemp+3	 	; 4
+			sta (SAVADR),Y		; 6 
+		skip_col4:
 
 		inx
 		cpx clipRight
 		bcs next_row
 
-		ldy #32
-		lda (SAVADR),Y 		; 5+1
-		and maskTemp+4 		; 4
-		ora imageTemp+4	 	; 4
-		sta (SAVADR),Y		; 6 
+		cpx clipLeft 
+		bcc skip_col5 
+			ldy #32
+			lda (SAVADR),Y 		; 5+1
+			and maskTemp+4 		; 4
+			ora imageTemp+4	 	; 4
+			sta (SAVADR),Y		; 6 
+		skip_col5:
 
 		jmp next_row
 

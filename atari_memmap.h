@@ -88,6 +88,7 @@
 #define AUDF1  (0xD200)
 #define AUDC1  (0xD201)
 #define AUDCTL (0xD208)
+#define RANDOM (0xD20A)
 #define SKCTL  (0xD20F)
 
 // ANTIC
@@ -111,5 +112,6 @@
 #define STRIG0_read (*(const char*)STRIG0)
 #define STRIG1_read (*(const char*)STRIG1)
 
+#define RANDOM_value (*(char*)RANDOM)
 
 #endif

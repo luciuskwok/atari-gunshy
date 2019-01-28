@@ -29,6 +29,7 @@ typedef struct TileSpecifier {
 } TileSpecifier;
 
 // tile.asm stuff
+void clearScreen(void);
 void drawAllTiles(void);
 void tileLocation(TileSpecifier *tile);
 void redrawTileBounds(TileSpecifier *tile);
@@ -100,7 +101,7 @@ const uint8_t level0RowEnd[] = { 13, 11, 12, 13, 14, 12, 11, 13 };
 #define CommandsLine (23)
 
 
-static void drawTileBoardTimed(void) {
+static void drawAllTilesTimed(void) {
 	uint16_t startTime = Clock16;
 	
 	drawAllTiles();
@@ -186,15 +187,19 @@ static void selectTile(TileSpecifier *tile) {
 
 static void getShuffledTiles(uint8_t *outArray) {
 	// This version just creates an array in order, for testing.
-	uint8_t x;
-	uint8_t value = 1;
+	uint8_t x, y, tmp;
 
+	// Initially create an in-order array
 	for (x=0; x<144; ++x) {
-		outArray[x] = value;
+		outArray[x] = x + 1;
+	}
 
-		value += 4; 
-		if (value > 144) {
-			value = value - 143;
+	for (x=143; x>=1; --x) {
+		y = RANDOM_value % (x + 1);
+		if (x != y) {
+			tmp = outArray[x];
+			outArray[x] = outArray[y];
+			outArray[y] = tmp;
 		}
 	}
 }
@@ -207,6 +212,9 @@ static void startNewGame(void) {
 	uint8_t tileIndex = 0;
 
 	selectTile(NULL); // Deselect All
+	clearScreen();
+
+	printStatusLine("Shuffling...");
 
 	// Sort tiles
 	getShuffledTiles(sortedTiles);
@@ -246,7 +254,7 @@ static void startNewGame(void) {
 	movesIndex = 0;
 	printTilesLeft();
 
-	drawTileBoardTimed();
+	drawAllTilesTimed();
 }
 
 static uint8_t pointInRect(uint8_t ptx, uint8_t pty, uint8_t rx, uint8_t ry, uint8_t rw, uint8_t rh) {
@@ -449,14 +457,15 @@ static void undoRemoveTile(uint8_t redraw) {
 }
 
 static void restartGame(void) {
-	// Undo all mvoes
+	// Undo all moves
 
 	selectTile(NULL); // Deselect All
+	clearScreen();
 
 	while (movesIndex > 0) {
 		undoRemoveTile(0);
 	}	
-	drawTileBoardTimed();
+	drawAllTilesTimed();
 }
 
 static void showNewGameConfirmation(void) {
@@ -624,10 +633,10 @@ int main (void) {
 		}
 	}
 
-	printStatusLine("Use joystick (pt.1) or mouse (pt.2)");
-
 	// New game
 	startNewGame();
+
+	printStatusLine("Use joystick (pt.1) or mouse (pt.2)");
 
 	pointerHasMoved = 0; // Reset this because initially it will be set when pointer is drawn for the first time.
 
