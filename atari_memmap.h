@@ -35,40 +35,9 @@
 #define VVBLKI (0x0222) /* Immediate vertical blank interrupt vector */
 #define VVBLKD (0x0224) /* Deferred vertical blank interrupt vector */
 
-#define SDMCTL (0x022F)
-#define SDLSTL (0x0230) /* Pointer to display list */
-#define GPRIOR (0x026F)
-
-// Joystick
-#define STICK0 (0x0278)
-#define STICK1 (0x0279)
-#define STRIG0 (0x0284)
-#define STRIG1 (0x0285)
-
 // Text Window
 #define TXTMSC (0x0294) /* Pointer to text window memory */
 #define BOTSCR (0x02BF)
-
-// Colors (Shadow)
-#define PCOLR0 (0x02C0)
-#define PCOLR1 (0x02C1)
-#define PCOLR2 (0x02C2)
-#define PCOLR3 (0x02C3)
-#define COLOR0 (0x02C4)
-#define COLOR1 (0x02C5) /* text luminance */
-#define COLOR2 (0x02C6) /* text background color */
-#define COLOR3 (0x02C7)
-#define COLOR4 (0x02C8)
-#define COLOR5 (0x02C9) /* DLI text luminance */
-#define COLOR6 (0x02CA) /* DLI text background color */
-
-// Memory Management
-#define MEMTOP (0x02E5)
-#define CHBAS (0x02F4)
-
-// Keyboard
-#define CH1 (0x02F2)
-#define CH_ (0x02FC)
 
 // Sprites (GTIA)
 #define HPOSP0 (0xD000)
@@ -107,10 +76,6 @@
 #define ROWCRS_value (*(char*)ROWCRS)
 #define COLCRS_value (*(char*)COLCRS)
 #define BITMSK_value (*(char*)BITMSK)
-#define CH_value (*(char*)CH_)
-
-#define STRIG0_read (*(const char*)STRIG0)
-#define STRIG1_read (*(const char*)STRIG1)
 
 #define RANDOM_value (*(char*)RANDOM)
 

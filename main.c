@@ -6,11 +6,11 @@
 
 
 // Includes
+#include <atari.h>
 #include "atari_memmap.h"
 #include "graphics.h"
 #include "text.h"
 #include "types.h"
-#include <atari.h>
 
 
 // misc.asm stuff
@@ -489,8 +489,8 @@ static void hideNewGameConfirmation(void) {
 }
 
 static void handleKeyboard(void) {
-	uint8_t key = CH_value & 0x3F;
-	CH_value = 0xFF; // Accept the key
+	uint8_t key = CH & 0x3F;
+	CH = 0xFF; // Accept the key
 
 	if (isInDialog) {
 		if (key == KEY_Y || key == KEY_RETURN) {
@@ -585,8 +585,8 @@ static void mouseDown(void) {
 static void handleTrigger(void) {
 	static uint8_t prevTrig0 = 0;
 	static uint8_t prevTrig1 = 0;
-	uint8_t trig0 = STRIG0_read;
-	uint8_t trig1 = STRIG1_read;
+	uint8_t trig0 = STRIG0;
+	uint8_t trig1 = STRIG1;
 
 	// Only the left mouse button is supported, since it is mapped to the joystick fire button on the Atari 9-pin joystick port.
 	// Mouse should be plugged into the second port (STICK1).
